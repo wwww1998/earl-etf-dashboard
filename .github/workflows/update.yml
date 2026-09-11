@@ -7,7 +7,7 @@ on:
   workflow_dispatch:   # 手动触发
 
 permissions:
-  contents: write     # 推送提交需要写权限
+  contents: write
 
 jobs:
   update:
@@ -26,7 +26,7 @@ jobs:
       - name: 安装依赖
         run: pip install requests numpy pandas akshare
 
-      - name: 恢复缓存（跨运行复用 cache 目录，避免每次全量重抓触发 WAF）
+      - name: 恢复缓存
         uses: actions/cache@v4
         id: cache
         with:
@@ -40,8 +40,19 @@ jobs:
 
       - name: 抓取数据
         id: fetch
-        run: python fetch_data.py --quick
-        timeout-minutes: 12
+        run: |
+          # 冷启动保护：缓存为空时走全量回填，日常增量走 --quick
+          CSV_COUNT=$(find cache -maxdepth 1 -name "csi*.csv" | wc -l)
+          if [ "$CSV_COUNT" -lt 5 ]; then
+            echo "=== 冷启动模式（缓存不足，全量回填） ==="
+            echo "cache 顶层 csi*.csv 数量: $CSV_COUNT"
+            python fetch_data.py
+          else
+            echo "=== 日常增量模式 ==="
+            echo "cache 顶层 csi*.csv 数量: $CSV_COUNT"
+            python fetch_data.py --quick
+          fi
+        timeout-minutes: 15
 
       - name: 构建页面
         run: python build.py
