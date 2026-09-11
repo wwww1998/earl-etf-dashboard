@@ -1,0 +1,59 @@
+name: 每日自动更新看板
+
+on:
+  schedule:
+    # 北京时间 18:30 = UTC 10:30
+    - cron: '30 10 * * *'
+  workflow_dispatch:   # 手动触发
+
+permissions:
+  contents: write     # 推送提交需要写权限
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install requests numpy pandas akshare
+
+      - name: 恢复缓存（跨运行复用 cache 目录，避免每次全量重抓触发 WAF）
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: cache
+          key: etf-cache-v1-${{ github.run_date }}
+          restore-keys: |
+            etf-cache-v1-
+
+      - name: 保证 cache 目录存在
+        run: mkdir -p cache
+
+      - name: 抓取数据
+        id: fetch
+        run: python fetch_data.py --quick
+        timeout-minutes: 12
+
+      - name: 构建页面
+        run: python build.py
+
+      - name: 提交并推送
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html data.json data.js cache/
+          if git diff --staged --quiet; then
+            echo "内容未变化，跳过提交。"
+          else
+            git commit -m "chore: 自动更新 $(TZ=Asia/Shanghai date +%Y-%m-%d\ %H:%M)"
+            git push
+          fi

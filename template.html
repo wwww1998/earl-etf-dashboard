@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--BUILD-->
+<title>EarlETF 图表周刊 · 指标看板（每日自动更新）</title>
+<!--ECHARTS_HERE-->
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --line:#e5e7eb; --line2:#f0f1f3;
+  --tx:#1f2328; --tx2:#5b6472; --tx3:#8b95a3;
+  --up:#d13a34; --down:#0f9960; --blue:#2563eb; --org:#ea8b1f; --pur:#7c3aed; --gray:#94a3b8;
+  --redbg:#fef2f2; --grnbg:#ecfdf5; --bluebg:#eff6ff; --orgbg:#fffbeb;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
+
+/* header */
+header{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:30px 0 26px;margin-bottom:22px}
+header .wrap{padding-bottom:0}
+h1{font-size:23px;font-weight:650;letter-spacing:.3px}
+.sub{color:#c7d0da;font-size:13px;margin-top:7px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+  border-radius:20px;padding:4px 13px;font-size:12px;color:#e8eef5}
+.pill b{color:#fff;font-weight:600}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-bottom:22px}
+nav .wrap{padding:0 20px;display:flex;gap:2px;overflow-x:auto}
+nav a{padding:11px 12px;font-size:13px;color:var(--tx2);text-decoration:none;white-space:nowrap;
+  border-bottom:2px solid transparent}
+nav a:hover{color:var(--tx);background:var(--line2)}
+nav a.on{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+
+/* cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:20px 22px;margin-bottom:20px}
+.card h2{font-size:16.5px;font-weight:650;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;background:var(--bluebg);color:var(--blue)}
+.tag.warn{background:var(--orgbg);color:var(--org)}
+.tag.sub2{background:#f3f4f6;color:var(--tx3)}
+.lead{color:var(--tx2);font-size:13px;margin:8px 0 14px}
+.principle{color:var(--tx2);font-size:12px;line-height:1.7;background:var(--orgbg);border:1px solid #fde68a;border-radius:8px;padding:9px 12px;margin:0 0 12px}
+
+/* kpi */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:14px 0 6px}
+.kpi{background:#fafbfc;border:1px solid var(--line2);border-radius:9px;padding:11px 13px}
+.kpi .l{font-size:11.5px;color:var(--tx3);margin-bottom:3px}
+.kpi .v{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.kpi .s{font-size:11px;color:var(--tx3);margin-top:2px}
+.up{color:var(--up)} .down{color:var(--down)} .neu{color:var(--tx)} .blue{color:var(--blue)} .org{color:var(--org)}
+
+/* chart */
+.chart{width:100%;height:340px;margin-top:6px}
+.chart.tall{height:400px}
+.chart.xlg{height:520px}
+.charts3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.charts3 .chart{height:250px}
+@media(max-width:900px){.charts3{grid-template-columns:1fr}}
+
+/* explain */
+details{margin-top:14px;border-top:1px solid var(--line2);padding-top:12px}
+summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--blue);list-style:none;
+  display:flex;align-items:center;gap:6px;user-select:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸";transition:transform .15s;display:inline-block;font-size:11px}
+details[open] summary::before{transform:rotate(90deg)}
+.exp{margin-top:12px;display:grid;gap:12px}
+.exp .row{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:start}
+.exp .k{font-size:12px;color:var(--tx3);font-weight:600;padding-top:1px}
+.exp .t{font-size:13px;color:var(--tx2)}
+.exp .t b{color:var(--tx);font-weight:600}
+.exp ul{margin:5px 0 0 16px;color:var(--tx2);font-size:13px}
+.exp li{margin:3px 0}
+code{background:#f3f4f6;border:1px solid var(--line);border-radius:4px;padding:1px 5px;
+  font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#b91c1c}
+.warnbox{background:var(--orgbg);border:1px solid #fde68a;border-radius:8px;padding:10px 13px;
+  font-size:12.5px;color:#92400e}
+
+/* signal bar */
+.sig{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  padding:3px 10px;border-radius:6px}
+.sig.hot{background:var(--redbg);color:var(--up)}
+.sig.cold{background:var(--grnbg);color:var(--down)}
+.sig.mid{background:#f3f4f6;color:var(--tx2)}
+.dot{width:7px;height:7px;border-radius:50%}
+.sig.hot .dot{background:var(--up)} .sig.cold .dot{background:var(--down)} .sig.mid .dot{background:var(--gray)}
+
+/* summary table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line2)}
+th{color:var(--tx3);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+td:first-child{font-weight:500}
+tbody tr:hover{background:#fafbfc}
+
+footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border-top:1px solid var(--line);margin-top:26px}
+.note{background:var(--bluebg);border:1px solid #dbeafe;border-radius:8px;padding:11px 14px;
+  font-size:12.5px;color:#1e40af;margin:10px 0}
+.err{background:var(--redbg);border:1px solid #fecaca;border-radius:8px;padding:11px 14px;color:#b91c1c;font-size:13px}
+
+/* 使用方法 */
+.how{margin-top:14px;border:1px solid var(--line);border-left:3px solid var(--blue);
+  border-radius:9px;background:#fafbfc;padding:12px 15px}
+.how .ht{font-size:12.5px;font-weight:650;color:#1f2328;margin-bottom:8px;letter-spacing:.2px}
+.how .hr{display:grid;grid-template-columns:62px 1fr;gap:10px;font-size:12.5px;padding:3px 0;align-items:start}
+.how .hk{color:#8b95a3;font-weight:600}
+.how .hv{color:#5b6472}
+.how .hv b{color:#1f2328}
+.how .tip{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);
+  font-size:12.5px;color:#374151;line-height:1.7}
+.how .tip b{color:#1f2328}
+.how .cau{color:#92400e;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>EarlETF 图表周刊 · 指标看板</h1>
+    <div class="sub">源自张翼轸《EarlETF 图表周刊 2026-08-30》· 共 <b>13</b> 个指标（含 4 个补充口径，合计 17 张图）· 数据每日自动更新</div>
+    <div class="meta">
+      <span class="pill">数据更新 <b id="m-upd">—</b></span>
+      <span class="pill">数据源 <b>中证指数官网 / 腾讯行情 / AkShare</b></span>
+      <span class="pill">更新频率 <b>每交易日 18:30</b></span>
+    </div>
+  </div>
+</header>
+
+<nav><div class="wrap" id="nav">
+  <a href="#sum">信号汇总</a>
+  <a href="#m1">1 五年之锚</a><a href="#m1b">1b 五年之锚·原文</a>
+  <a href="#m2">2 股债性价比</a><a href="#m3">3 韭圈儿指标</a><a href="#m3b">3b 韭圈儿·基金</a><a href="#m4">4 偏股基金3年</a>
+  <a href="#m5">5 顶部共振·债基</a><a href="#m5b">5b 顶部共振·易方达</a>
+  <a href="#m6">6 规模风格轮动</a><a href="#m7">7 成长价值轮动</a><a href="#m8">8 红利股息率</a>
+  <a href="#m9">9 红利40日收益差</a><a href="#m10">10 红利回归·价格</a><a href="#m10b">10b 红利回归·全收益</a>
+  <a href="#m11">11 红利AH收益差</a><a href="#m12">12 沪深300估值</a><a href="#m13">13 交易集中度</a>
+  <a href="#note">口径说明</a>
+</div></nav>
+
+<div class="wrap">
+
+<div class="card" id="sum">
+  <h2>信号汇总 <span class="tag">每日快照</span></h2>
+  <div class="lead">按编号 <b>1 → 13</b> 一眼看完全部指标当前的读数与方向。信号仅为机械读数，不构成投资建议。</div>
+  <div id="sumBody"></div>
+</div>
+
+<!-- ============ M1 ============ -->
+<div class="card" id="m1">
+  <h2>1 · 五年之锚（10年分位版） <span class="tag">估值锚</span><span class="tag sub2">万得全A 881001.WI</span></h2>
+  <div class="lead">把 A 股当成一个「有波幅、少升幅」的商品，以五年均线为锚点：低位多买，高位管住手。</div>
+  <div class="kpis" id="m1k"></div>
+  <div class="chart" id="m1c"></div>
+  <div id="m1h"></div>
+  <details><summary>指标说明 · 算法 / 用法 / 局限</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">衡量指数相对自身五年平均成本的位置。<b>偏离度越高越危险，越低越有机会。</b></div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><code>偏离度 = 收盘价 ÷ 1250日简单移动平均(约5年×250交易日) − 1</code><br><code>10年偏离度百分位 = 当前偏离度在过去 2500 个交易日(约10年)样本中的百分位</code>图上橙线＝五年均线；10 年偏离度百分位不再常驻，改为<b>悬停某天时在提示框带出</b>（50%＝十年中位）。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t"><ul>
+      <li>偏离度 <b>&gt; +15%</b>：暂停定投，甚至考虑减仓</li>
+      <li>偏离度 <b>接近 0 或为负</b>：低位区间，可加大买入</li>
+      <li><b>10 年分位交叉验证</b>：&gt;80% 已挤进十年最贵一档，&lt;20% 相反。两者一致时信号更可靠</li>
+      <li><b>动态平衡</b>：上下大幅偏离时重置风险敞口，等回归五年均线后再平衡，避免过快再平衡</li>
+    </ul></div></div>
+    <div class="row"><div class="k">局限</div><div class="t">均线是滞后指标，单边上涨/下跌市会持续误报；本页用价格指数替代原文的全收益指数，偏离度会系统性偏低约每年 2%（股息），看趋势与相对高低不受影响。<br><b>关于 10 年分位</b>：需先有 5 年样本才出值（均线本身要 1250 日），早期窗口不足 10 年时按实际可用长度计算，因此曲线左段的参考价值弱于满窗后；它是<b>相对自身近十年</b>的位置，不能跨市场横向比较。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M1b ============ -->
+<div class="card" id="m1b">
+  <h2>1b · 五年之锚（原文口径版） <span class="tag">估值锚</span><span class="tag sub2">五年均线下浮20%抄底线</span></h2>
+  <div class="lead">严格按张翼轸原文口径：五年之锚 = 五年均线<b>下浮 20%</b>（MA×0.8），历史上四次大底都落在它上面；顶部则用「向上偏离五年均线」的幅度分档提示。</div>
+  <div class="kpis" id="m1bk"></div>
+  <div class="chart" id="m1bc"></div>
+  <div id="m1bh"></div>
+  <details><summary>指标说明 · 原文口径（五年均线下浮20%）</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t"><b>五年之锚 = 万得全A 五年均线(1250日) 下浮 20%</b>。指数触及/跌破这条线，就是作者定义的抄底区域。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><code>五年之锚(MA-20) = 1250日均线 × 0.8</code><br><code>偏离度 = 收盘价 ÷ 1250日均线 − 1</code>（衡量指数相对五年均线向上/向下的幅度）</div></div>
+    <div class="row"><div class="k">抄底？</div><div class="t">指数<b>向下触及或跌破 MA-20（五年均线×0.8）</b>即为抄底区域 —— 2008、2013、2018、2024-09 四次底部均与之重合。历史位置：五年偏离度 &lt; 0 且贴近 −20% 时处于低位。</div></div>
+    <div class="row"><div class="k">顶部？</div><div class="t"><b>向上偏离五年均线</b>的幅度分档提示风险（文字口径）：2007 / 2015 ≈ <b>+100%</b> 极端、2009 ≈ <b>+68%</b> 高、2020 ≈ <b>+35%</b> 偏高。当前 &lt; +30% 属中性区，需结合其它信号判断是否偏贵。</div></div>
+    <div class="row"><div class="k">与 1 的区别</div><div class="t">第 1 张用「10 年偏离度百分位」做相对位置量化；本张严格按原文<b>绝对口径</b>：以五年均线下浮 20% 为抄底线、以向上偏离幅度做顶部分档，更贴近作者原始用法。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M2 ============ -->
+<div class="card" id="m2">
+  <h2>2 · 中美视角下的股债性价比 <span class="tag">估值锚</span><span class="tag sub2">沪深300 · 中/美10Y国债</span></h2>
+  <div class="lead">同一批 A 股，在内资和美元资金眼里性价比完全不同 —— 因为两边用的无风险利率基准不一样。</div>
+  <div class="kpis" id="m2k"></div>
+  <div class="chart" id="m2c"></div>
+  <div id="m2h"></div>
+  <details><summary>指标说明 · FED模型 / 双视角 / 市赚率</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">用股票的<b>盈利收益率</b>减去<b>国债收益率</b>。差值越大，股票相对债券越划算。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><ul>
+      <li><code>中国视角 = 1 ÷ 沪深300市盈率(TTM) × 100 − 中国10年期国债收益率</code></li>
+      <li><code>美元视角 = 1 ÷ 沪深300市盈率(TTM) × 100 − 美国10年期国债收益率</code></li>
+      <li><code>市赚率 = 市盈率 ÷ (净资产收益率 × 100)</code>，1 为合理，&lt;1 低估，&gt;1 高估</li>
+    </ul></div></div>
+    <div class="row"><div class="k">为什么<br/>分中美</div><div class="t">A 股既有内资，也有大量美元本位的外资，两边对「无风险收益」的基准不同。2019 年初中美利率接近时判断相近；2022—2023 年美联储加息后美债收益率高企，<b>美元资金视角下 A 股吸引力锐减</b> —— 这对被外资偏爱的「核心资产」是坏消息。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t"><ul>
+      <li><b>高息红利股、小盘股</b>由内资主导定价 → 看<b>中国视角</b></li>
+      <li><b>核心资产 / 白马</b>外资参与度高 → 看<b>美元视角</b></li>
+      <li>两者背离时，往往解释了「为什么指数不涨但红利涨」这类结构性行情</li>
+    </ul></div></div>
+    <div class="row"><div class="k">口径</div><div class="t">市盈率用<b>乐咕月频滚动市盈率</b>（中证官网日频 PE 仅作参考、不参与计算，两源口径不同）。<b>市赚率 = PE ÷ (ROE×100)</b>，其中 ROE 由<b>真实 PB ÷ PE</b>推导（当前约 11%），PB/PE 均取自乐咕月频，历史分位优于绝对值。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M3 ============ -->
+<div class="card" id="m3">
+  <h2>3 · 韭圈儿神奇指标（指数口径） <span class="tag">顶底标尺</span><span class="tag sub2">H00300全收益 vs 885003偏债混合</span></h2>
+  <div class="lead">用偏债混合型基金指数当作沪深300的「价值中枢」：跌破它＝底部，远离它＝顶部。</div>
+  <div class="principle">通俗原理：理论上股市长期收益应高于债券（至少美股如此）。但 A 股长期上蹿下跳、电梯式涨跌，很容易让股票投资者<b>阶段性跑输债券</b>——若长期如此股市会对资金失去吸引力。于是无论产业资本出手回购，还是有形之手托底，又或多重因素叠加，A股往往就在这个「跑输债基」的区域见底。</div>
+  <div class="kpis" id="m3k"></div>
+  <div class="chart" id="m3c"></div>
+  <div class="chart" id="m3c2" style="margin-top:10px"></div>
+  <div id="m3h"></div>
+  <div class="warnbox">⚠️ 作者原话：这个指标「其实没有什么坚实的理论基础」，2022 年提出后虽神奇踩准 2024 年 1 月和 9 月的底部，但<b>依然可能是巧合</b>。要研判顶底，市盈率、股债性价比更具理论基础。</div>
+  <details><summary>指标说明 · 来源 / 算法 / 替代口径</summary>
+  <div class="exp">
+    <div class="row"><div class="k">来源</div><div class="t">韭圈儿（北落）2022 年发现并用原话概括：<b>「沪深300指数基金的累计涨幅，跌至于偏债混合基金相若时，往往就是市场见底时」</b>。作者用<b>沪深300指数基金</b>与<b>万得偏债混合型基金指数(885003.WI)</b>两条累计涨幅曲线对照；顶部信号为作者推演的偏离 +60% 高危。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t">偏债混合基金净值曲线几乎单调上行、波动极小，相当于一条「靠时间赚钱」的基准线。把它和沪深300基金画在一起：<ul>
+      <li>沪深300全收益 <b>跌破</b>该线 → 极端悲观，底部区域（2008 已破 0；2024 最低贴近但微高于 0）</li>
+      <li>沪深300全收益 <b>大幅高于</b>该线 → 过热，顶部风险（2007、2015 顶部超 +60%）</li>
+    </ul></div></div>
+    <div class="row"><div class="k">数据来源</div><div class="t">红线＝<b>沪深300全收益指数(H00300)</b>，取自中证指数公司官网官方全收益序列（含分红再投资）；橙线＝<b>万得偏债混合型基金指数(885003.WI)</b>，经 Wind AImarket 拉取真实逐日点位并缓存到本地（5261 个交易日）。两线均从共同起点 rebase 到 1000。885003 为 Wind 专有指数，缓存<b>手动/低频更新、不纳入每日刷新</b>，以避免每日消耗 Wind 额度。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M3b 韭圈儿神奇指标 · 基金净值口径（原著口径） ============ -->
+<div class="card" id="m3b">
+  <h2>3b · 韭圈儿神奇指标（基金净值口径） <span class="tag">顶底标尺</span><span class="tag sub2">易方达沪深300 110020 vs 885003</span></h2>
+  <div class="lead">原著 2022 年那张截图的真实口径：用基民<b>真能买到的沪深300指数基金</b>（易方达沪深300 110020）累计净值，
+    对比偏债混合基金指数。与 3 的指数口径互为对照 —— <b>同一思路，两口径当前读数相差 53 个百分点</b>。</div>
+  <div class="kpis" id="m3bk"></div>
+  <div class="chart" id="m3bc"></div>
+  <div class="chart" id="m3bc2" style="margin-top:10px"></div>
+  <div id="m3bh"></div>
+  <div class="warnbox">⚠️ <b>口径差异警示</b>：当前 <b>3（指数口径）偏离度 +34.29%</b>，本栏（基金口径）<b>−18.82%</b>，
+    <b>相差 53.1 个百分点</b> —— 一个显示「中性偏上」，一个显示「已跑输偏债混合」。
+    差异根源：3 用<b>含分红再投、不计任何费用</b>的全收益指数，本栏用<b>扣费后的真实基金净值</b>。
+    <b>做决策请固定一个口径看趋势，不要混用。</b></div>
+  <details><summary>指标说明 · 与 3 的口径差异 / 费率拖累 / 用法</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">3 用「指数」算（沪深300全收益 H00300），本栏用<b>真实基金</b>算（易方达沪深300 110020 的累计净值）。
+      基民拿到手的是后者 —— 已被管理费、托管费与跟踪误差吃掉一截。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><code>两线偏离度 = 易方达沪深300累计净值 ÷ 偏债混合基金指数(885003.WI) − 1</code><br/>
+      两条曲线均从首个共同交易日 <b>2009-08-26</b> 起归一化到 100。</div></div>
+    <div class="row"><div class="k">两口径<br/>差在哪</div><div class="t">同区间（2009-08-26 → 2026-08-28）实测：<b>H00300 全收益 +109.48%</b>，
+      而 <b>110020 实际基金 +88.74%</b> —— 17 年累计拖累 <b>−9.90%</b>（年化约 <b>−0.61%</b>），这就是费率 + 跟踪误差 + 分红处理差异的真实代价。
+      偏债腿同为 885003，两口径交叉校验仅差 <b>0.55 个百分点</b>，说明两条偏债序列本身是一致的，差异全部来自「沪深300腿」。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t">判读逻辑同 3：<b>偏离度 → 0 或跌破 0</b>，意味着「买沪深300基金还不如买偏债混合」，情绪极度悲观，历史对应底部区。
+      <b>但本口径历史区间仅 −39.24% ~ +5.33%，从未触及 +60%</b>，所以 3 里那条「+60%＝顶部」的阈值<b>在本栏不适用</b>，请只看 0 轴。</div></div>
+    <div class="row"><div class="k">当前读数</div><div class="t">偏离度 <b>−18.82%</b>，处于<b>跑输</b>偏债混合的状态；但历史分位 <b>64.9%</b>，
+      意味着历史上约 65% 的时间比现在<b>更悲观</b>（2012—2014 年长期在 −30% 以下），因此尚未进入极端底部，属「偏冷但非冰点」。</div></div>
+    <div class="row"><div class="k">数据口径</div><div class="t">110020 累计净值来自 AkShare（东财基金）；885003 为 <b>Wind 官方序列，手动/低频更新、不纳入每日刷新</b>，
+      故本栏与 3 同样止于 <b>2026-08-28</b>，滞后于页面其余模块。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M4 ============ -->
+<div class="card" id="m4">
+  <h2>4 · 偏股基金3年滚动年化收益 <span class="tag">情绪</span><span class="tag sub2">中证偏股基金 930950</span></h2>
+  <div class="lead">董承非「公转私」后分享的指标 —— 用基民的真实体感来衡量市场温度。</div>
+  <div class="kpis" id="m4k"></div>
+  <div class="chart" id="m4c"></div>
+  <div id="m4h"></div>
+  <details><summary>指标说明 · 为什么看「基民体感」</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">中证偏股基金指数过去 3 年的年化收益。它衡量的是<b>普通基民过去三年到底赚没赚钱</b>，是市场情绪最直接的温度计。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><code>3年滚动年化 = (今日点位 ÷ 1095个自然日前点位) ^ (365/1095) − 1</code><br/>采用自然日口径，与中证指数官网一致。</div></div>
+    <div class="row"><div class="k">阈值</div><div class="t"><ul>
+      <li><b>&gt; +30%</b>：提示泡沫，情绪过热</li>
+      <li><b>&lt; −10%</b>：提示底部，情绪冰点</li>
+    </ul></div></div>
+    <div class="row"><div class="k">为什么<br/>重要</div><div class="t">A 股内资越来越多的钱是通过偏股基金进场的，这个指数作为市场情绪的衡量，重要性会越来越强。历史规律：需要两波 −10% 的「双底」才走出阴霾，但历史不会简单重复。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M5 ============ -->
+<div class="card" id="m5">
+  <h2>5 · 偏股基金 vs 一级债基（顶部共振） <span class="tag">顶底标尺</span><span class="tag sub2">885006.WI · 2007-12-31=1000</span></h2>
+  <div class="lead">EarlETF 原文（复刻雪球 @qzy69）：<b>从 2008 年 A 股顶部(2007-12-31)起</b>，把偏股基金与<b>只能打新的一级债基</b>累计收益相比——<b>红线＝一级债基累计收益线，用来估算偏股基金指数的顶部</b>。</div>
+  <div class="kpis" id="m5k"></div>
+  <div class="chart" id="m5c"></div>
+  <div id="m5h"></div>
+  <div class="warnbox">⚠️ <b>过拟合争议</b>：起点选在 2008 顶部属事后诸葛，真正有效的顶部样本只有 2015、2021 两次；且 2008 年后偏股基金约八成交易日跑输债基，「贴近红线」<b>不保证立即见顶</b>，只作位置标尺参考。</div>
+  <details><summary>指标说明 · 思路来源 / 判读 / 局限</summary>
+  <div class="exp">
+    <div class="row"><div class="k">思路</div><div class="t">雪球用户 <b>@qzy69</b> 提出用一级债基与偏股基金指数对比来估算顶部；张翼轸《EarlETF 图表周刊》沿用并改用 Wind 一级债基指数跟踪。<b>原文逻辑</b>：易方达增强回报是 2008-03-19 成立、<b>只能参与打新（后改为投资可转债）的一级债基</b>，这个思路相当于从 2008 年 A 股顶部起，把 A 股与它相比，<b>认为债基的累计收益代表了偏股基金「应该跑赢的上限」</b>——2015-06 与 2021-02 两次大顶，偏股基金指数都涨到<b>贴近（略高于）债基收益线</b>的位置。债基收益线于是成为估算偏股基金顶部的<b>标尺线</b>。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t">两条累计收益曲线均从 <b>2007-12-31 = 1000</b>（2008 顶部标尺）起算：<b>红线＝万得一级债基指数(885006.WI)</b>（原文即用 Wind 一级债基指数替代易方达）；蓝线＝<b>中证偏股基金指数(930950)</b>（即原文的「偏股基金指数」，与 M4/M5b 同源）。纵轴为对数坐标。比值 = 偏股 ÷ 一级债基：比值 = 1 即偏股线正好「触及」红线。</div></div>
+    <div class="row"><div class="k">判读</div><div class="t"><b>看偏股线离红线（估算顶）有多远，不看分位</b>：偏股自下方<b>逼近并上穿红线</b>＝进入顶部估算区——2007 年以来比值仅 <b>0.4%</b> 的交易日 ≥1.03，2015-06(1.04) 与 2021-02(1.08) 两次大顶都在这里；偏股<b>大幅低于红线</b>（如 2024 年比值低至 0.51、2022 年 0.69）＝离估算顶很远。比值随行情上下摆动，当前读数给出「距红线还需再涨 X%」的距离标尺。</div></div>
+    <div class="row"><div class="k">口径修正</div><div class="t">曾有一版把偏股腿换成 <b>885001(万得偏股混合)</b> 并把基日取 2003-12-31，导致图形与原文差异很大（该口径 2021 顶超债基 34%，与原文「两次顶都只略高」不符）；2026-09-02 改回 <b>930950 + 2007 年末锚点</b>忠实复刻原文。债基线 885006 为 Wind 官方数据（手动低频拉取缓存），与原文所用易方达增强回报(110017) 日收益相关 0.818，是更贴切的指数化一级债基。</div></div>
+    <div class="row"><div class="k">局限</div><div class="t">这种图表逃不掉<b>「过拟合」</b>的质疑——起点选在顶部本身就是事后诸葛，真正有效的顶部样本只有 2015、2021 两次；且 2008 年后偏股基金多数时间跑输债基（约八成交易日在线下），「贴近红线」并不保证立即见顶，只作<b>位置标尺</b>参考。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M5b 顶部共振 · 易方达增强回报 ============ -->
+<div class="card" id="m5b">
+  <h2>5b · 偏股基金 vs 易方达增强回报 <span class="tag">顶底标尺</span><span class="tag sub2">110017 · @qzy69 原始基金口径</span></h2>
+  <div class="lead">@qzy69 最初的测法：用一级债基「易方达增强回报」的累计收益，估算偏股基金指数的顶部位置。</div>
+  <div class="kpis" id="m5bk"></div>
+  <div class="chart tall" id="m5bc"></div>
+  <div id="m5bh"></div>
+  <div class="warnbox">⚠️ <b>过拟合争议</b>：同 5。此外单只基金净值会受经理操作、申赎冲击影响，作为基准参照比指数略为主观。</div>
+  <details><summary>指标说明 · 原始基金口径 / 与 5 的区别</summary>
+  <div class="exp">
+    <div class="row"><div class="k">思路</div><div class="t">本指标最初由雪球用户 <b>@qzy69</b> 提出：用一级债基的累计收益来估算偏股基金指数的顶部位置。他原始使用的就是 <b>易方达增强回报</b>（2008-03-19 成立的一级债基）。后来才有投资者改用 Wind 一级债基指数替代、并把起始点位设为 2007-12-31（即 M5）。</div></div>
+    <div class="row"><div class="k">逻辑</div><div class="t">从 2008 年 A 股顶部起，把 A 股表现与「只能参与新股申购的一级债基」相比，<b>债基的累计收益＝偏股基金「应该跑赢的上限」</b>：本栏看「偏股 ÷ 易方达」的比值能否<b>逼近乃至上穿 1.00（触及易方达累计收益线）</b>——2015-06(1.13) 与 2021-02(1.13) 两次大顶都发生在偏股贴近并略超这条线的位置；偏股大幅低于该线（2008 年底 0.52、2024 年初 0.57）则离估算顶很远。<b>「贴近甚至跌破」该线不是底部信号</b>——2008 年后偏股约 7 成交易日在线下，跌穿只是常态。</div></div>
+    <div class="row"><div class="k">口径</div><div class="t">M5 用指数化一级债基（万得 885006）做债基线，起点 2007-12-31；本栏是 @qzy69 <b>原版基金口径</b>：直接取 <b>易方达增强回报(110017)的累计净值</b>（含分红再投），因该基金 2008 年才成立，两条曲线改从首个共同交易日（2008-03-19）起归一化到 1000。<b>起点略晚于 M5、债基标的不同，数值不可与 M5 直接比</b>，看「偏股线逼近/上穿紫线」的相对形态即可。</div></div>
+    <div class="row"><div class="k">数据源</div><div class="t">日常净值由 <b>AkShare（东财基金）累计净值走势</b>自动拉取；该序列已用 <b>Wind 官方 API（110017.OF 累计单位净值）</b>逐日复核：4486 个共同交易日偏差<b>全部为 0.0000</b>（最大偏差 0、均方根 0），数据可信。</div></div>
+    <div class="row"><div class="k">局限</div><div class="t">与 M5 相同的「过拟合」质疑：起点选在顶部属事后诸葛。一只基金的净值仍会受经理操作、申赎冲击影响，作为基准参照比指数略为主观。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M6 ============ -->
+<div class="card" id="m6">
+  <h2>6 · 规模风格轮动三棱镜 <span class="tag">轮动</span><span class="tag sub2">三组品种对 · 全收益口径</span></h2>
+  <div class="lead">同一对品种，用三张图交叉验证：<b>252日布林线</b>、<b>五年均线</b>、<b>40日收益差</b>。凑齐两个信号就要高度重视。本卡片含三组品种对：<b>① 300成长创新 ÷ 300价值稳健</b>　<b>② 1000成长创新 ÷ 1000价值稳健</b>　<b>③ 沪深300 ÷ 中证1000</b>（均为全收益口径）。</div>
+  <div id="m6k"></div>
+		  <div class="charts3" style="margin-top:12px">
+		    <div class="chart" id="m6a1"></div><div class="chart" id="m6a2"></div><div class="chart" id="m6a3"></div>
+		  </div>
+		  <div class="chart" id="m6a4" style="height:380px;margin-top:14px"></div>
+		  <div class="chart" id="m6a6" style="height:380px;margin-top:14px"></div>
+		  <div id="m6ah"></div>
+  <div id="m6bWrap" style="margin-top:18px"></div>
+  <div id="m6cWrap" style="margin-top:18px"></div>
+  <details><summary>指标说明 · 三个信号怎么用 / 哪些品种不适用</summary>
+  <div class="exp">
+    <div class="row"><div class="k">三个信号</div><div class="t"><ul>
+      <li><b>信号①</b>：比值上穿 / 下穿 <b>252 日布林线</b>（均线 ± 2 倍标准差）</li>
+      <li><b>信号②</b>：比值跌破 <b>五年均线</b>（1250 日）</li>
+      <li><b>信号③</b>：<b>40 日收益差</b>的 252 日均线 上穿 / 下穿 0</li>
+    </ul></div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t">三个信号中<b>凑齐两个</b>，就要对一波轮动开始的可能性<b>高度重视</b>。三个信号分别从「统计极值」「长期趋势」「短期动量」三个角度交叉验证，比单一信号可靠得多。</div></div>
+    <div class="row"><div class="k">40日收益差<br/>是什么</div><div class="t"><code>40日收益差 = (A 的 40 日收益率 − B 的 40 日收益率) × 100</code><br/>它把「谁涨得快」量化了。配合 252 日均线可以过滤噪音：均线上穿 0 轴说明 A 相对强势已经持续了一段，不是一日游。</div></div>
+    <div class="row"><div class="k">重要提醒</div><div class="t">不是所有品种都适合趋势思路。比如 <b>1000成长创新 vs 1000价值稳健</b> 的比值明显在<b>区间内震荡</b>，看着比值低买高卖可能更好。作者个人偏爱用这个图表跟踪 <b>300价值稳健 vs 300成长创新</b> —— A 股大盘股风格轮动往往两三年一波，趋势性比较强。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M7 ============ -->
+<div class="card" id="m7">
+  <h2>7 · 成长 / 价值轮动三棱镜 <span class="tag">轮动</span><span class="tag sub2">国证成长 399370 vs 国证价值 399371</span></h2>
+  <div class="lead">产品端创新让我们可以用一只产品捕捉整个成长风格或价值风格 —— 即改规则后的国证价值100 与成长100。</div>
+  <div id="m7k"></div>
+  <div class="charts3" style="margin-top:12px">
+	    <div class="chart" id="m7a1"></div><div class="chart" id="m7a2"></div><div class="chart" id="m7a3"></div>
+	  </div>
+	  <div class="chart" id="m7a4" style="height:380px;margin-top:14px"></div>
+	  <div id="m7h"></div>
+  <div class="warnbox">⚠️ <b>口径替代</b>：原文的国证成长100(980080) / 国证价值100(980081) 无公开历史行情接口，本页改用同一编制机构（深证信息）的 <b>国证成长(399370) / 国证价值(399371)</b>，风格含义一致，历史自 2010 年起。</div>
+  <details><summary>指标说明 · 与 6 同源 / 口径替代</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">与模块 6 完全相同的「三棱镜」范式，只是品种换成了<b>纯成长 vs 纯价值</b>的风格指数。</div></div>
+    <div class="row"><div class="k">口径替代</div><div class="t">原文的 <b>国证成长100(980080) / 国证价值100(980081)</b> 无公开历史行情接口（东财历史接口在本网络被封锁，同花顺 / 腾讯 / 雪球均未覆盖）。本页改用<b>同一编制机构（深证信息）</b>的 <b>国证成长(399370) / 国证价值(399371)</b>，风格含义一致，历史自 2010 年起。</div></div>
+    <div class="row"><div class="k">用法</div><div class="t">同模块 6：布林线极值 + 五年均线 + 40日收益差，三选二。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M8 ============ -->
+<div class="card" id="m8">
+  <h2>8 · 中证红利股息率追踪 <span class="tag">估值锚</span><span class="tag sub2">中证红利 000922</span></h2>
+  <div class="lead">红利涨了这么多年，是不是有泡沫了？答案要回到股息率本身，而不是看价格涨了多少。</div>
+  <div class="kpis" id="m8k"></div>
+  <div class="chart" id="m8c"></div>
+  <div id="m8h"></div>
+  <details><summary>指标说明 · 为什么股息率才是红利的「估值」</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">过去数年红利的强势，本质是<b>抗跌</b>，是核心资产等其他品种疲弱衬托出来的。要真正评价红利的潜力，必须回归<b>股息率</b>。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><ul>
+      <li>股息率：中证官网发布的<b>股息率1（总股本）</b></li>
+      <li><code>风险溢价 = 股息率 − 中国10年期国债收益率</code></li>
+    </ul></div></div>
+    <div class="row"><div class="k">为什么<br/>减国债</div><div class="t">考虑到<b>险资的话语权越来越大</b>，险资的考核基准本质是票息 vs 债息。股息率减去 10 年国债，才是红利资产对险资的真实吸引力 —— 这才是定价的边际力量。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t">股息率处于历史高位（尤其是显著高于国债）时，红利的安全边际厚；股息率被压缩到接近甚至低于国债时，红利的性价比就消失了。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M9 ============ -->
+<div class="card" id="m9">
+  <h2>9 · 中证红利40日收益差 <span class="tag">轮动</span><span class="tag sub2">中证红利 vs 中证A股</span></h2>
+  <div class="lead">红利长期稳健，但强势末期杀进去，短期可能要相对 A 股疲弱一段时间。</div>
+  <div class="kpis" id="m9k"></div>
+  <div class="chart" id="m9c"></div>
+  <div id="m9h"></div>
+  <details><summary>指标说明 · 怎么找红利的「进场点」</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">这是<b>中证红利相对中证A股</b>的轮动三棱镜中的「40日收益差」一栏，用来解决红利的<b>择时</b>问题。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><code>40日收益差 = (中证红利40日收益率 − 中证A股40日收益率) × 100</code><br/>再叠加它的 252 日均线过滤噪音。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t"><ul>
+      <li>收益差<b>过高</b>：红利短期透支，<b>不要追高</b></li>
+      <li>静待回落到<b>零轴甚至更低</b>（历史上常见的更低点）：此时才是红利的相对买点</li>
+    </ul></div></div>
+  </div></details>
+</div>
+
+<!-- ============ M10 ============ -->
+<div class="card" id="m10">
+  <h2>10 · 中证红利回归通道（价格指数） <span class="tag">估值锚</span><span class="tag sub2">000922 价格指数</span></h2>
+  <div class="lead">给红利画一条「时间换空间」的对数回归通道，下轨就是绝对收益视角的买点参考。</div>
+  <div class="kpis" id="m10k"></div>
+  <div class="chart xlg" id="m10c"></div>
+  <div id="m10h"></div>
+  <details><summary>指标说明 · 对数回归与 1.5σ 通道（价格指数）</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">红利类资产追求的是「稳稳的大幸福」。用对数回归刻画它的长期增长轨道，用 ±1.5 个标准差的通道刻画它的正常波动范围。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><ul>
+      <li>用<b>价格指数 000922</b>（不含分红，对标传统 K 线点位）</li>
+      <li>对 2016 年以来的收盘价取<b>自然对数</b>，对时间做<b>一元线性回归</b></li>
+      <li>拟合值 ± 1.5 倍残差标准差 → 通道上下轨</li>
+      <li>斜率 × 250 交易日 → 隐含年化收益率</li>
+      <li>当前位置的 <b>Z 值 = (ln(现价) − 拟合值) ÷ 残差标准差</b></li>
+    </ul></div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t"><b>置信区间下轨</b>可以作为绝对收益视角下的买点参考。Z 值越负（靠近下轨），长期回归的潜在空间越大；Z 值显著为正（贴上轨甚至突破），则说明短期透支。</div></div>
+    <div class="row"><div class="k">注意</div><div class="t">价格指数不含分红，隐含年化会低于全收益口径约 2%。同思路的全收益版本见下方 <code>M10b</code>（用官方全收益 H00922）。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M10b ============ -->
+<div class="card" id="m10b">
+  <h2>10b · 中证红利回归通道（全收益） <span class="tag">估值锚</span><span class="tag sub2">H00922 全收益指数</span></h2>
+  <div class="lead">与第 10 张同思路，改用含分红再投的中证红利<b>全收益指数</b>重构——更贴合原文口径，隐含年化不再被低估约 2%/年。</div>
+  <div class="kpis" id="m10bk"></div>
+  <div class="chart xlg" id="m10bc"></div>
+  <div id="m10bh"></div>
+  <details><summary>指标说明 · 对数回归与 1.5σ 通道（全收益）</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">与第 10 张完全相同的算法，仅把原始序列换成中证红利<b>全收益指数</b>——把所有分红的再投资收益也算进去，收益更真实。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><ul>
+      <li>用<b>官方全收益指数 H00922</b>（中证官网发布，含分红再投）</li>
+      <li>对 2016 年以来的收盘点位取<b>自然对数</b>，对时间做<b>一元线性回归</b></li>
+      <li>拟合值 ± 1.5 倍残差标准差 → 通道上下轨</li>
+      <li>斜率 × 250 交易日 → 隐含年化收益率</li>
+      <li>当前位置的 <b>Z 值 = (ln(现价) − 拟合值) ÷ 残差标准差</b></li>
+    </ul></div></div>
+    <div class="row"><div class="k">与 M10 的区别</div><div class="t">全收益点位长期<b>单调向上</b>（不再因为分红而回撤），隐含年化比价格指数版高约 2%。通道要看<b>相对位置（Z 值）</b>来判断高低，不要看绝对点位。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M11 ============ -->
+<div class="card" id="m11">
+  <h2>11 · 红利A股 / 港股40日收益差 <span class="tag">轮动</span><span class="tag sub2">中证红利 vs 港股通高股息(CNY)</span></h2>
+  <div class="lead">都是红利策略，A 股和港股也会此消彼长 —— 这正是两者之间轮动的机会。</div>
+  <div class="kpis" id="m11k"></div>
+  <div class="chart" id="m11c"></div>
+  <div id="m11h"></div>
+  <details><summary>指标说明 · A股红利 vs 港股高股息，怎么切</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t">伴随 A 股红利走强，港股高股息也日益受到关注。两者虽同为红利策略，但存在明显的<b>此消彼长</b>。</div></div>
+    <div class="row"><div class="k">算法</div><div class="t"><code>40日收益差 = (中证红利40日收益率 − 中证港股通高股息(CNY)40日收益率) × 100</code></div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t"><ul>
+      <li>收益差<b>过高</b>：A 股红利短期跑赢太多 → <b>多买点港股高股息</b></li>
+      <li>收益差<b>过低</b>：港股高股息相对占优已持续一段 → <b>多多考虑中证红利</b></li>
+    </ul></div></div>
+    <div class="row"><div class="k">补充</div><div class="t">港股高股息指数采用 <b>CNY 口径(930914)</b>，已剔除汇率影响。此外港股通红利存在 20% 股息红利税，实际到手收益需打折，这是两者切换时必须考虑的因素。</div></div>
+  </div></details>
+</div>
+
+<!-- ============ M12 沪深300 估值一图看全 ============ -->
+<div class="card" id="m12">
+  <h2>12 · 沪深300估值一图看全 <span class="tag">估值锚</span><span class="tag sub2">走势 · 市盈率 · 市赚率</span></h2>
+  <div class="lead">市盈率是所有估值体系的起点，但它考虑的因素过于单一 —— 于是有了<b>市赚率</b>，把 ROE 也纳入进来。三张图上下对照，才能看清「猜顶」与「估底」。</div>
+  <div class="kpis" id="m12k"></div>
+
+  <div class="sub">① 沪深300 走势（与下方估值指标对照）</div>
+  <div class="chart" id="m12c"></div>
+
+  <div class="sub">② 市盈率 TTM</div>
+  <div class="chart" id="m12c2"></div>
+
+  <div class="sub">③ 市赚率 PR = PE ÷ ROE</div>
+  <div class="chart" id="m12c3"></div>
+  <div id="m12h"></div>
+
+  <details><summary>指标说明 · 市盈率 / 市赚率怎么看</summary>
+  <div class="exp">
+    <div class="row"><div class="k">来源</div><div class="t">EarlETF《沪深300 估值一图看全，及一个坏消息》(2024-10-28)。市赚率由雪球用户 <b>@ericwarn丁宁</b> 提出（<code>PR = PE / ROE</code>），原用于个股，作者认为<b>指数一样好用</b>，故纳入沪深300 估值体系。</div></div>
+    <div class="row"><div class="k">市盈率</div><div class="t">股价 ÷ 过去 12 个月（四个财报季）的利润。一目了然：以过去四个季度盈利估算，需要多少年回本。<b>优点是简单明了，缺点是考虑因素过于单一</b>。</div></div>
+    <div class="row"><div class="k">市赚率</div><div class="t"><code>PR = PE / ROE</code>。等于 <b>1PR 为合理估值</b>，大于 1PR 高估、小于 1PR 低估。思路类似早年风靡的 PEG（估值 ÷ 另一维度），但 PEG 看<b>利润增速</b>，市赚率看近年大热的<b>质量因子 ROE</b>。</div></div>
+    <div class="row"><div class="k">关键价值</div><div class="t">单独看市盈率容易陷入「便宜没好货」的估值陷阱。<b>请对照文中 ❶2018 年初 与 ❷2021 年初 两个时点</b>：单看市盈率，两者都明显低于 2015 年高点，似乎不高估；但看市赚率，❶已与 2015 年高点相当，❷甚至超出 —— 原因是 <b>ROE 回落</b>，经过 ROE 调整后的市盈率其实并不低。这是市盈率单独看不出来的。</div></div>
+    <div class="row"><div class="k">数据口径</div><div class="t">市盈率与市净率取自<b>乐咕乐股</b>（月频，2005 年至今），ROE 由 <code>PB ÷ PE</code> 推算；沪深300 走势用<b>中证官方全收益 H00300</b>。<span class="cau">注意：PE/PB 的长周期历史无官方免费接口，乐咕是业内通用第三方源，本模块曲线为月频。</span></div></div>
+  </div></details>
+</div>
+
+<!-- ============ M13 交易集中度 ============ -->
+<div class="card" id="m13">
+  <h2>13 · 交易集中度（前5%成交额占比） <span class="tag">微观结构</span><span class="tag sub2">前5%成交额 ÷ 全市场</span></h2>
+  <div class="lead">全市场成交最活跃的约 270 只股票，吃掉了多少比例的总成交额 —— 这是资金抱团程度的温度计。第一组为日度集中度（与中证全指收盘走势联动对照），下方再给<b>周度 / 月度</b>两种低频口径，滤掉日间噪音看抱团的中期趋势。</div>
+  <div class="kpis" id="m13k"></div>
+  <div class="sub" id="m13sub1">① 中证全指(000985) 收盘走势（与下方集中度对照）</div>
+  <div class="chart xlg" id="m13c"></div>
+  <div class="sub" id="m13sub2">② 前5%成交额集中度·日度（橙线，45% 为拥挤警戒线）</div>
+  <div class="chart" id="m13c2"></div>
+  <div class="sub" id="m13sub3">③ 周度集中度（自然周累计，紫线）</div>
+  <div class="chart" id="m13c3"></div>
+  <div class="sub" id="m13sub4">④ 月度集中度（自然月累计，蓝线）</div>
+  <div class="chart" id="m13c4"></div>
+  <div id="m13h"></div>
+  <details><summary>指标说明 · 三频口径 / 警戒线 / 数据说明</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t"><code>前5%成交额集中度 = 成交额排名前5%个股的总成交额 ÷ 全市场总成交额 × 100%</code>。数值越高，资金越向少数热门股抱团，微观交易结构越拥挤。</div></div>
+    <div class="row"><div class="k">三频口径</div><div class="t"><b>②日度</b>：按当日成交额排序取前 5%；<b>③周度</b>：按<b>自然周</b>累计成交额排序取前 5%（每只股票先加总全周成交额再排名）；<b>④月度</b>：按<b>自然月</b>累计同口径。周/月口径滤掉日内与日间的头部轮动噪音，更能体现资金抱团的持续性；每个自然周/月输出一个点，最新点为进行中窗口的滚动累计值。</div></div>
+    <div class="row"><div class="k">警戒线</div><div class="t">研究经验值 <b>45%</b>（日度口径）是被反复验证的拥挤警戒线：突破后往往对应市场顶部、风格切换或抱团瓦解（2007 / 2015 / 2018 / 2021 均曾触发）。常态中枢约 38%，低于 20% 为低迷无人问津。阈值在注册制新股扩容后中枢可能趋势性上移，宜结合分位一起看。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t">日度集中度 &gt; 45% 且持续：历史调整概率大，控制仓位、警惕抱团瓦解；回落至 35% 以下：资金分散、机会更均衡。周/月线向上加速时往往是结构性行情进入主升（抱团强化），见顶回落则常伴随抱团瓦解——结合上方中证全指收盘走势对照指数顶底。</div></div>
+    <div class="row"><div class="k">数据口径</div><div class="t">历史序列用「个股<b>成交量×收盘价</b>」估算成交额（因真实成交额 ≈ 成交量×100×收盘，误差≈1%）；<b>最新交易日用腾讯实时快照的真实成交额实测</b>，快照日期新于序列末日且已收盘时自动追加（日/周/月序列每日前进）。全市场口径 = 沪市 A（600 / 688）+ 深市 A（000 / 002 / 300 / 301）。顶部走势：<b>中证全指(000985) 官方收盘点位</b>（中证指数公司官网 index-perf 接口，2005-01-04 至今，非近似指数）。</div></div>
+  </div></details>
+</div>
+
+<div class="card" id="note">
+  <h2>口径与替代说明 <span class="tag warn">必读</span></h2>
+  <div class="lead">原文的图表基于 Wind 数据，部分标的无免费公开数据源。下表逐条披露本页的替代口径与影响方向 —— 请务必在阅读结论前先看这里。</div>
+  <div id="noteBody"></div>
+  <div class="note" style="margin-top:16px">
+    <b>关于「可复现性」：</b>所有数据均落盘在 <code>cache/</code> 目录（CSV），首次运行回补全历史，之后每个交易日只增量抓取最新数据。中证官网有 WAF 限流，脚本内置了退避重试与本地缓存，断网时页面仍会展示上一次成功抓取的数据。
+  </div>
+</div>
+
+<footer>
+  数据来自公开渠道，仅供研究参考，不构成任何投资建议。<br/>
+  图表模型版权归《EarlETF 图表周刊》作者张翼轸所有，本页为个人学习用途的复现。
+</footer>
+</div>
+
+<!--DATA_HERE-->
+<script>
+// ---------------- 工具 ----------------
+const $ = id => document.getElementById(id);
+const C = {up:'#d13a34',down:'#0f9960',blue:'#2563eb',org:'#ea8b1f',pur:'#7c3aed',gray:'#94a3b8',line:'#e5e7eb'};
+const fmt = (v,d=2)=> v===null||v===undefined||isNaN(v) ? '—' : Number(v).toFixed(d);
+const pct = (v,d=2)=> v===null||v===undefined||isNaN(v) ? '—' : (v>0?'+':'')+Number(v).toFixed(d)+'%';
+
+/* tooltip 数据框跟随鼠标移动；贴近右/下边界时自动翻转到鼠标另一侧，避免被容器裁掉 */
+function ttPos(point, params, dom, rect, size){
+  var x = point[0] + 12, y = point[1] + 12;
+  var vw = size.viewSize[0], vh = size.viewSize[1];
+  var w = dom.offsetWidth, h = dom.offsetHeight;
+  if (x + w + 8 > vw) x = Math.max(8, point[0] - w - 12);
+  if (y + h + 8 > vh) y = Math.max(8, point[1] - h - 12);
+  return [x, y];
+}
+const cls = v => v>0?'up':(v<0?'down':'neu');
+
+function pctile(arr, v){
+  const a = arr.filter(x=>x!==null && x!==undefined && !isNaN(x)).slice().sort((x,y)=>x-y);
+  if(!a.length || v===null || isNaN(v)) return null;
+  let i=0; while(i<a.length && a[i]<v) i++;
+  return i/a.length*100;
+}
+function kpi(items){
+  return '<div class="kpis">'+items.map(([l,v,c,s])=>
+    `<div class="kpi"><div class="l">${l}</div><div class="v ${c||'neu'}">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`
+  ).join('')+'</div>';
+}
+function sig(level,text){ return `<span class="sig ${level}"><span class="dot"></span>${text}</span>`; }
+// 每个窗口下方的「使用方法」：rows=[[看什么,怎么用]...]，tip=结合当前读数的操作提示
+function how(id, title, rows, tip){
+  const el=$(id); if(!el) return;
+  el.innerHTML = '<div class="how"><div class="ht">'+title+'</div>'
+    + rows.map(function(r){ return '<div class="hr"><span class="hk">'+r[0]+'</span><span class="hv">'+r[1]+'</span></div>'; }).join('')
+    + (tip ? '<div class="tip">'+tip+'</div>' : '') + '</div>';
+}
+
+// ---------------- 图表 ----------------
+const charts=[];
+function chart(dom, opt){
+  if(!dom) return;
+  const c = echarts.init(dom);
+  // 悬停数据框跟随鼠标移动：position 由各图自身 tooltip.position=ttPos 控制，此处不再覆盖
+  c.setOption(opt); charts.push(c);
+  // 窗口缩放时重绘
+  window.addEventListener('resize', ()=>{ try{c.resize();}catch(e){} });
+  // 关键：容器尺寸就绪（含 0→真实高度的过渡，常见于预览/iframe 环境）后自动重绘，
+  // 避免 echarts.init 时容器高度为 0 导致曲线不可见
+  if(window.ResizeObserver){
+    try{ new ResizeObserver(()=>{ try{c.resize();}catch(e){} }).observe(dom); }catch(e){}
+  }
+}
+// 使两张图共享同一时间轴：dataZoom 缩放联动 + tooltip 悬停互通
+function _linkCharts(id1, id2){
+  const c1 = echarts.getInstanceByDom($(id1)), c2 = echarts.getInstanceByDom($(id2));
+  if(!c1 || !c2) return;
+  try{ echarts.connect([c1, c2]); }catch(e){}
+  const sync = (fromC, toC) => {
+    fromC.on('dataZoom', (ev)=>{
+      const d = (ev && ev.batch && ev.batch[0]) ? ev.batch[0] : ev;
+      if(d && (d.start!=null)) toC.setOption({dataZoom:[{start:d.start,end:d.end},{start:d.start,end:d.end}]});
+    });
+  };
+  sync(c1, c2); sync(c2, c1);
+}
+function baseOpt(extra){
+  return Object.assign({
+    grid:{left:58,right:22,top:34,bottom:34},
+    tooltip:{trigger:'axis', confine:false, position:ttPos, backgroundColor:'rgba(255,255,255,.97)', borderColor:C.line,
+      borderWidth:1, padding:[3,6], extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;',
+      textStyle:{color:'#1f2328',fontSize:10,lineHeight:14},
+      axisPointer:{type:'cross', lineStyle:{color:'#cbd5e1'}},
+      formatter:function(ps){
+        if(!ps) return '';
+        const arr = Array.isArray(ps) ? ps : [ps];
+        if(!arr.length) return '';
+        let s = '<b>'+arr[0].axisValue+'</b>';
+        for(let i=0;i<arr.length;i++){
+          const p=arr[i];
+          if(p.seriesName===undefined || p.seriesName===null || p.seriesName==='') continue;
+          const v=p.value;
+          let num = v;
+          if(Array.isArray(v)) num = v.length ? v[v.length-1] : null;
+          s += '<br/>'+p.marker+' '+p.seriesName+'：<b>'
+            + (num===null||num===undefined||isNaN(Number(num)) ? '—' : fmt(Number(num),2)) + '</b>';
+        }
+        return s;
+      }},
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'}},
+    animation:false
+  }, extra);
+}
+function xAxis(dates){
+  return {type:'category', data:dates, boundaryGap:false,
+    axisLine:{lineStyle:{color:C.line}}, axisLabel:{fontSize:11,color:'#8b95a3',
+      formatter:v=>v.slice(0,7)}, axisTick:{show:false}};
+}
+function line(name, data, color, opt){
+  return Object.assign({name, type:'line', data, showSymbol:false, smooth:false,
+    lineStyle:{width:1.6,color}, itemStyle:{color},
+    connectNulls:true}, opt||{});
+}
+function area(name, data, color, opt){
+  return line(name, data, color, Object.assign({
+    areaStyle:{color:color+'18'}, lineStyle:{width:0}}, opt||{}));
+}
+function mk(id, dates, series, yAxis, extra){
+  const ydef = {type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},
+    axisLabel:{fontSize:11,color:'#8b95a3'},splitLine:{lineStyle:{color:'#f0f1f3'}}};
+  let ya;
+  if (Array.isArray(yAxis)){
+    ya = yAxis.map(o => Object.assign({}, ydef, o));
+    ya[0].splitLine = ya[0].splitLine || {lineStyle:{color:'#f0f1f3'}};
+    if (ya[1]){ ya[1].splitLine = ya[1].splitLine != null ? ya[1].splitLine : {show:false};
+                ya[1].nameTextStyle = {align:'left'}; }
+  } else {
+    ya = Object.assign({}, ydef, yAxis||{});
+  }
+  chart($(id), baseOpt(Object.assign({
+    xAxis:xAxis(dates), yAxis:ya, series}, extra||{})));
+}
+function hline(v,label,color){ return markLine({y:v,label:label,color:color}); }
+function markLine(o){
+  return {silent:true, symbol:'none', lineStyle:{color:o.color,type:'dashed',width:1.2},
+    data:[{yAxis:o.y, label:{formatter:o.label||'',fontSize:10,color:o.color,position:'insideEndTop'}}]};
+}
+// 图上穿越箭头：buys=[[date,price],...] 红色上箭头⬆(偏离≤-15%抄底)；sells=[[date,price],...] 绿色下箭头⬇(偏离≥+30%顶部)。同方向20个交易日内各标一次。
+// 注意：历史数据经过 thin() 抽稀，个别日期可能不在 x 轴类目里，改按【类目序号】定位，
+// 找不到精确日期时落到最近(≤)的可用交易日，确保箭头一定渲染。
+function mpArrows(buys, sells, dates){
+  const imap = {};
+  (dates||[]).forEach((d,i)=>{ imap[d]=i; });
+  function idxOf(date){
+    if(imap[date]!=null) return imap[date];
+    let b=-1;
+    for(const k in imap){ if(k<=date && imap[k]>b) b=imap[k]; } // 字符串按日期排序，取最近的早于目标
+    return b<0 ? 0 : b;
+  }
+  const d=[];
+  (buys||[]).forEach(x=>{ const i=idxOf(x[0]); if(i>=0) d.push({coord:[i,x[1]], symbol:'triangle', symbolRotate:0, symbolOffset:[0,12], itemStyle:{color:'#dc2626'}}); });
+  (sells||[]).forEach(x=>{ const i=idxOf(x[0]); if(i>=0) d.push({coord:[i,x[1]], symbol:'triangle', symbolRotate:180, symbolOffset:[0,-12], itemStyle:{color:'#16a34a'}}); });
+  return {silent:true, symbol:'triangle', symbolSize:13, symbolRotate:0,
+          label:{show:false}, data:d};
+}
+
+// ---------------- 主渲染 ----------------
+const D = window.DATA || {};
+const M = D.modules || {};
+$('m-upd').textContent = D.updated || '—';
+
+// 模块缺失时给出占位，而不是留白
+function missing(key, kpiId, chartIds){
+  if(kpiId && $(kpiId)) $(kpiId).innerHTML =
+    '<div class="kpi" style="grid-column:1/-1;background:#fffbeb;border-color:#fde68a">'+
+    '<div class="l">数据状态</div>'+
+    '<div class="v" style="font-size:14px;color:#92400e">数据补充中</div>'+
+    '<div class="s">该指标依赖的指数历史正在后台回补，每日自动更新后会补齐</div></div>';
+  (chartIds||[]).forEach(id=>{ const el=$(id); if(el){ el.style.height='110px'; el.style.display='flex';
+    el.style.alignItems='center'; el.style.justifyContent='center';
+    el.innerHTML='<div style="color:#8b95a3;font-size:13px">数据补充中 · 每日自动更新后会补齐</div>'; }});
+}
+function has(k, kpiId, chartIds){
+  if(M[k]) return true;
+  missing(k, kpiId, chartIds);
+  return false;
+}
+
+// ---- 汇总表 ----
+function buildSummary(){
+  const rows=[];
+  const add=(name,val,signal,level,note)=>rows.push({name,val,signal,level,note});
+
+  // 按页面编号 1 → 13 排序，与下方卡片一一对应
+  if(M.m1){ const d=M.m1.cur.dev, p10=M.m1.cur.pct10;
+    add('1 · 五年之锚（万得全A）', pct(d),
+      d>15?'偏热 / 暂停定投':(d<0?'偏低 / 可加仓':'中性'), d>15?'hot':(d<0?'cold':'mid'),
+      `偏离度 ${pct(d)}（阈值+15%），10年分位 ${fmt(p10,0)}%`); }
+  if(M.m2){ const p=pctile(M.m2.data.cols[0],M.m2.cur.ey_cn);
+    add('2 · 股债性价比（中国视角）', fmt(M.m2.cur.ey_cn)+'%',
+      p>70?'股票性价比高':(p<30?'股票性价比低':'中性'), p>70?'cold':(p<30?'hot':'mid'),
+      `历史分位 ${fmt(p,0)}%`); }
+  if(M.m2){ add('2 · 股债性价比（美元视角）', fmt(M.m2.cur.ey_us)+'%',
+      M.m2.cur.ey_us>0?'外资视角仍有吸引力':'外资视角缺乏吸引力',
+      M.m2.cur.ey_us>0?'cold':'hot', `美债10Y ${fmt(M.m2.cur.us10y)}%`); }
+  if(M.m3){ const d=M.m3.cur.dev;
+    add('3 · 韭圈儿神奇指标', pct(d), d<0?'两线交汇 / 底部区':(d>60?'远离 / 顶部高危':'中性'),
+      d<0?'cold':(d>60?'hot':'mid'), '沪深300全收益 vs 偏债混合(885003替代)累计涨幅偏离'); }
+  if(M.m3b){ const _a=M.m3b.data.cols[0], _b=M.m3b.data.cols[1], _n=_a.length-1;
+    const dv=_a[_n]/_b[_n]*100-100;
+    add('3b · 韭圈儿指标(基金口径)', pct(dv), dv<0?'跑输偏债 / 偏冷':(dv>60?'远离 / 顶部高危':'中性'),
+      dv<0?'cold':(dv>60?'hot':'mid'), '110020 实际净值 vs 885003；与 3 相差约 53pct'); }
+  if(M.m4){ const r=M.m4.cur.r3;
+    add('4 · 偏股基金3年滚动年化', pct(r),
+      r>30?'泡沫区':(r<-10?'底部区':'中性'), r>30?'hot':(r<-10?'cold':'mid'),
+      '阈值 +30% / −10%'); }
+  if(M.m5){ const r=M.m5.cur.ratio, g=M.m5.cur.gap;
+    add('5 · 偏股 vs 一级债基(估算顶)', fmt(r,2),
+      r>=1.03?'已上穿估算顶线':(r>=0.90?'逼近估算顶线':(r>=0.72?'中性':'离估算顶较远')),
+      r>=1.03?'hot':'mid',
+      g>=0?`偏股距红线(债基累计收益)还需 +${fmt(g,1)}% 即触及估算顶区`:`偏股已高出红线 ${fmt(-g,1)}%，顶部警戒`); }
+  const PRISM_NO = {m6a:'6①', m6b:'6②', m6c:'6③', m7:'7'};
+  ['m6a','m6b','m6c','m7'].forEach(k=>{ const m=M[k]; if(!m) return;
+    const s=countSig(m);
+    add(`${PRISM_NO[k]} · 轮动三棱镜 · ${m.labels[0]} ÷ ${m.labels[1]}`, `${s.n}/3`,
+      s.n>=2?'⚠ 轮动信号触发':(s.n===1?'有个别信号':'无信号'),
+      s.n>=2?'hot':(s.n===1?'mid':'mid'), s.txt); });
+  if(M.m8){ const p=pctile(M.m8.data.cols[0],M.m8.cur.dy);
+    add('8 · 中证红利股息率', fmt(M.m8.cur.dy)+'%',
+      p>70?'股息率高 / 安全边际厚':(p<30?'股息率被压缩':'中性'), p>70?'cold':(p<30?'hot':'mid'),
+      `历史分位 ${fmt(p,0)}%，减国债后 ${fmt(M.m8.cur.spread)}%`); }
+  if(M.m9){ const v=M.m9.cur.d40;
+    add('9 · 红利40日收益差（vs A股）', pct(v,1),
+      v>8?'短期透支 / 勿追高':(v<-4?'回落至低位 / 关注买点':'中性'),
+      v>8?'hot':(v<-4?'cold':'mid'), '过高勿追，回落至零轴下方再考虑'); }
+  if(M.m10){ const z=M.m10.cur.z;
+    add('10 · 红利回归通道 Z 值', fmt(z,2),
+      z<-1?'接近下轨 / 买点参考':(z>1.2?'贴上轨 / 短期透支':'通道内'),
+      z<-1?'cold':(z>1.2?'hot':'mid'), `隐含年化 ${fmt(M.m10.cur.ann)}%`); }
+  if(M.m11){ const v=M.m11.cur.d40;
+    add('11 · 红利AH 40日收益差', pct(v,1),
+      v>8?'偏向港股高股息':(v<-4?'偏向A股红利':'中性'), v>8?'hot':(v<-4?'cold':'mid'),
+      '过高多买港股，过低多买A股'); }
+  if(M.m12){ const p=M.m12.cur.pr, pe=M.m12.cur.pe;
+    add('12 · 沪深300 市盈率', fmt(pe,2)+' 倍', `历史分位 ${fmt(M.m12.cur.pe_pct,0)}%`,
+      M.m12.cur.pe_pct>70?'hot':(M.m12.cur.pe_pct<30?'cold':'mid'), 'PE TTM（乐咕月频）');
+    add('12 · 沪深300 市赚率', fmt(p,2)+' PR', p>1.2?'考虑ROE后偏高估':(p<0.8?'考虑ROE后偏低估':'合理估值区间'),
+      p>1.2?'hot':(p<0.8?'cold':'mid'), 'PR = PE ÷ ROE，1PR 为合理估值'); }
+  if(M.m13){ const r=M.m13.cur.ratio;
+    add('13 · 交易集中度(前5%占比)', fmt(r,2)+'%',
+      r>=45?'拥挤/警戒':(r>=38?'偏热':'中性'), r>=45?'hot':(r>=38?'mid':'mid'),
+      '突破45%历史多对应顶部/风格切换/抱团瓦解'); }
+
+  const pend = [
+    ['m3','3 · 韭圈儿神奇指标'],['m4','4 · 偏股基金3年滚动年化'],['m5','5 · 偏股基金 vs 债基'],
+    ['m6b','6② · 轮动三棱镜 · 1000成长创新/1000价值稳健'],
+    ['m8','8 · 中证红利股息率'],['m11','11 · 红利AH 40日收益差'],
+  ].filter(x=>!M[x[0]]);
+  let html = '<table><thead><tr><th>指标</th><th>当前值</th><th>读数</th><th>备注</th></tr></thead><tbody>'
+    + rows.map(r=>`<tr><td>${r.name}</td><td><b>${r.val}</b></td>
+        <td>${sig(r.level,r.signal)}</td><td style="color:#5b6472">${r.note}</td></tr>`).join('');
+  if(pend.length){
+    html += `<tr><td colspan="4" style="color:#92400e;background:#fffbeb">`+
+      `<b>数据补充中：</b>${pend.map(x=>x[1]).join('、')} —— 依赖的指数历史正在后台回补，每日自动更新后会补齐。</td></tr>`;
+  }
+  $('sumBody').innerHTML = html + '</tbody></table>';
+}
+
+// 信号③必须是「穿越 0 轴」这个动作（符号翻转），而不是「当前非 0」。
+// 原实现只判断 d40ma>0 / <0，导致该信号恒成立、信号数被系统性虚高，会误报「三选二」。
+function zeroCross(m, win=20){
+  const cols = m && m.d40 && m.d40.cols;
+  if(!cols || !cols[1]) return null;
+  const s = cols[1];
+  let last = -1;
+  for(let i=s.length-1; i>=0; i--){ if(s[i]!==null && s[i]!==undefined && !isNaN(s[i])){ last=i; break; } }
+  if(last <= 0) return null;
+  const now = s[last], start = Math.max(0, last - win);
+  for(let i=last-1; i>=start; i--){
+    const v = s[i];
+    if(v===null || v===undefined || isNaN(v)) continue;
+    if((now>0 && v<=0) || (now<0 && v>=0)){
+      return now>0 ? '40日收益差均线上穿0轴（近期翻多）'
+                   : '40日收益差均线下穿0轴（近期翻空）';
+    }
+  }
+  return null;
+}
+
+function countSig(m){
+  const c=m.cur, r=c.ratio, up=c.boll_up, dn=c.boll_dn, ma5=c.ma5;
+  let n=0, t=[];
+  if(r!==null && up!==null && r>up){ n++; t.push('比值突破布林上轨'); }
+  else if(r!==null && dn!==null && r<dn){ n++; t.push('比值跌破布林下轨'); }
+  if(r!==null && ma5!==null && r<ma5){ n++; t.push('比值跌破五年均线'); }
+  const x = zeroCross(m);
+  if(x){ n++; t.push(x); }
+  return {n, txt:t.length?t.join('、'):'三信号均未触发'};
+}
+
+// ---- M1 ----
+function rM1(){
+  const m=M.m1; if(!m) return; const c=m.cur;
+  $('m1k').innerHTML = kpi([
+    ['万得全A', fmt(c.close,0), 'neu', c.date],
+    ['五年均线(1250日)', fmt(c.ma1250,0), 'blue'],
+    ['偏离度', pct(c.dev), c.dev>15?'up':(c.dev<0?'down':'neu'),
+      c.dev>15?'⚠ 超过 +15%，暂停定投/考虑减仓':(c.dev<0?'低于五年均线，可加大买入':'中性区间')],
+    ['10年分位', fmt(c.pct10,0)+'%', c.pct10>80?'up':(c.pct10<20?'down':'neu'),'偏离度在近10年中的位置（曲线起自 '+(c.pctStart||'—')+'）'],
+  ]);
+  const dCls = c.dev>15?'up':(c.dev<0?'down':'neu');
+  const pCls = c.pct10>80?'up':(c.pct10<20?'down':'neu');
+  how('m1h','使用方法 · 五年之锚',[
+    ['看什么','蓝线＝万得全A，橙线＝五年均线。两者的间距就是偏离幅度。<b>10 年偏离度百分位不再常驻曲线</b>，鼠标<b>悬停</b>到任意日期时，在提示框里会带出当天该日分位："当前的偏离度在过去 10 年样本里排什么位置"，100%＝十年最贵、0%＝十年最便宜、50%＝中位。'],
+    ['曲线起点','标的已换成正宗的 <b>万得全A(881001.WI)</b>（Wind 官方数据，1999-12-30 起）。该日分位自 <b>'+(c.pctStart||'—')+'</b> 起有值，受两重热身限制：① 五年均线需 5 年（1250 日）历史，故偏离度自 2004-12 起；② 分位需至少 1 年（250 日）的偏离度样本。<b>历史不足 10 年的早期段落按「扩张窗口」计算</b>（用到当时为止的全部历史），攒满 2500 日后自动转为严格的 10 年滚动窗口 —— 因此早期同样可读，只是样本较短、波动会更敏感。'],
+    ['怎么用','先看偏离度：<b>&gt; +15%</b> 暂停定投甚至减仓，<b>接近 0 或为负</b> 可加大买入。再用 10 年分位交叉验证：<b>&gt;80%</b> 说明已挤进十年最贵的一档，<b>&lt;20%</b> 则相反。两者一致时信号更可靠；若偏离度不高但分位已高，说明近十年整体估值中枢在下移。'],
+  ], `当前偏离度 <b class="${dCls}">${pct(c.dev)}</b>，10年分位 <b class="${pCls}">${fmt(c.pct10,0)}%</b>：`
+    + (c.dev>15 ? '已越过 <b>+15%</b> 阈值 —— 建议<b>暂停新增定投</b>，已有仓位可考虑分批减。'
+      : c.dev<0 ? '指数位于五年均线<b>下方</b> —— 历史上属低位区间，可<b>加大定投力度</b>。'
+      : '处于<b>中性区间</b> —— 维持常规定投节奏即可。'));
+
+  // 主图不再常驻「10年偏离度百分位」曲线/右轴，仅在悬停 tooltip 中带出该日分位
+  mk('m1c', m.data.dates, [
+    line('万得全A', m.data.cols[0], C.blue),
+    line('五年均线', m.data.cols[1], C.org)
+  ], {type:'value',scale:true,axisLabel:{fontSize:11,color:'#8b95a3'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+    {tooltip:{trigger:'axis', confine:false, position:ttPos, padding:[3,6],
+      extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;',
+      textStyle:{fontSize:10,lineHeight:14}, axisPointer:{type:'cross', lineStyle:{color:'#cbd5e1'}},
+        formatter:function(ps){
+        if(!ps || !ps.length) return '';
+        var rows = ps.map(function(p){
+          return p.marker + ' ' + p.seriesName + '：<b>' + (p.value==null?'—':fmt(p.value,2)) + '</b>';
+        }).join('<br/>');
+        var pv = m.data.cols[2][ps[0].dataIndex];
+        var pvStr = (pv==null ? '—' : fmt(pv,2)+'%');
+        return '<b>'+ps[0].axisValue+'</b><br/>'+rows
+          + '<br/><span style="color:#8b95a3">10年偏离度百分位：</span><b>' + pvStr + '</b>'
+          + (pv!=null ? ' <span style="color:#8b95a3">(50%=十年中位)</span>' : '');
+      }},
+     legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['万得全A','五年均线']},
+     dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}]});
+}
+
+// ---- M1b 五年之锚（原文口径：五年均线下浮20%抄底线） ----
+function rM1b(){
+  const m=M.m1b; if(!m) return; const c=m.cur;
+  const belowMa = Math.abs(c.dev)<15;
+  $('m1bk').innerHTML = kpi([
+    ['万得全A', fmt(c.close,0), 'neu', c.date],
+    ['五年均线(1250日)', fmt(c.ma1250,0), 'blue'],
+    ['抄底线(五年均线下浮20%)', fmt(c.ma20,0), c.dev_ma20<0?'down':'red',
+      c.dev_ma20<0?'已跌破抄底线':'位于抄底线上方'],
+    ['偏离 MA-20', pct(c.dev_ma20), c.dev_ma20<0?'down':(c.dev<15?'neu':'up'),
+      c.dev_ma20<0?'⚠ 已跌破五年均线下浮20%抄底线 —— 作者定义的抄底区域':(c.dev<15?'位于抄底线上方，中性':'偏离 MA-20 较高，注意顶部压力')],
+  ]);
+  const dCls = c.dev_ma20<0?'down':(c.dev<15?'neu':'up');
+  how('m1bh','使用方法 · 原文口径五年之锚',[
+    ['看什么','四条线：<b>蓝线＝万得全A</b>（价格指数）、<b>橙线＝五年均线</b>（1250日，约5年）、<b>红线＝五年均线下浮 20% 抄底线</b>（MA×0.8，红色虚线即作者的「五年之锚」）、<b>紫虚线＝五年均线上浮 30%</b>（MA×1.3，顶部带，与抄底线对称）。'],
+    ['抄底','指数<b>向下触及或跌破红线（MA-20）</b>即进入作者定义的抄底区域 —— 2008 / 2013 / 2018 / 2024-09 四次大底均落在红线附近，历史上重合度很高。'],
+    ['顶部','顶部不做硬阈值，看<b>指数相对五年均线向上偏离的幅度分档</b>：2007/2015 ≈ <b>+100%</b> 极端、2009 ≈ <b>+68%</b> 高、2020 ≈ <b>+35%</b> 偏高；当前 &lt; +30% 属中性区。'],
+    ['穿越箭头','图上在万得全A曲线上按「当日偏离 (收盘−均线)/均线」做区间外标记：<b>红色⬆</b>＝偏离<b>≤ −15%</b>（抄底/买入区），<b>绿色⬇</b>＝偏离<b>≥ +30%</b>（顶部/减仓区）。<b>同方向每 60 个交易日(约一季度)只标一次</b>，避免过于密集。'],
+    ['注意','与第 1 张的「10年分位」是两套口径：本张用绝对幅度（更贴近原文），第 1 张用相对自身近10年的百分位。'],
+  ], `当前指数 <b class="${c.dev_ma20<0?'down':'neu'}">${pct(c.dev_ma20)}</b>（相对抄底线 MA-20）：`
+    + (c.dev_ma20<0 ? '已<b>跌破五年均线下浮20%抄底线</b> —— 符合作者定义的<b>抄底区域</b>，可分批加大买入。'
+      : c.dev<15 ? '位于<b>抄底线上方</b>、五年均线附近 —— 中性区，维持常态节奏。'
+      : '相对五年均线偏离较多 —— 顶部压力区，宜控制新增仓位。'));
+
+  mk('m1bc', m.data.dates, [
+    line('万得全A', m.data.cols[0], C.blue, {markPoint:mpArrows(m.marks&&m.marks.buys, m.marks&&m.marks.sells, m.data.dates)}),
+    line('五年均线', m.data.cols[1], C.org),
+    line('五年均线下浮20%(抄底线)', m.data.cols[2], C.red, {lineStyle:{width:1.6,type:'dashed',color:C.red}}),
+    line('五年均线上浮30%', m.data.cols[3], '#8b5cf6', {lineStyle:{width:1.4,type:'dashed',color:'#8b5cf6'}})
+  ], [{type:'value',scale:true,axisLabel:{fontSize:11,color:'#8b95a3'},splitLine:{lineStyle:{color:'#f0f1f3'}}}],
+    {legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},
+       data:['万得全A','五年均线','五年均线下浮20%(抄底线)','五年均线上浮30%']},
+     tooltip:{trigger:'axis', confine:false, position:ttPos, padding:[3,6],
+      extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;',
+      textStyle:{fontSize:10,lineHeight:14}, axisPointer:{type:'cross', lineStyle:{color:'#cbd5e1'}},
+        formatter:function(ps){
+          if(!ps||!ps.length) return '';
+          var rows = ps.map(function(p){
+            return p.marker + ' ' + p.seriesName + '：<b>' + (p.value==null?'—':fmt(p.value,2)) + '</b>';
+          }).join('<br/>');
+          var di = ps[0].dataIndex;
+          var v = m.data.cols[0][di], ma = m.data.cols[1][di];
+          var ratio = (v!=null && ma!=null && ma>0) ? (v-ma)/ma*100 : null;
+          var cls = (ratio!=null && ratio!==0) ? (ratio<0?'#16a34a':'#dc2626') : '#8b95a3';
+          var ratioStr = (ratio==null) ? '—' : (ratio>0?'+':'')+ratio.toFixed(2)+'%';
+          return '<b>'+ps[0].axisValue+'</b><br/>'+rows
+            + '<br/><span style="color:#8b95a3">当日偏离 (收盘−均线)/均线：</span>'
+            + '<b style="color:'+cls+'">'+ratioStr+'</b>';
+        }},
+     dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}]});
+}
+
+// ---- M2 ----
+function rM2(){
+  const m=M.m2; if(!m) return; const c=m.cur;
+  const p=pctile(m.data.cols[0],c.ey_cn);
+  $('m2k').innerHTML = kpi([
+    ['沪深300 市盈率', fmt(c.pe), 'neu', c.date],
+    ['盈利收益率 E/P', fmt(100/c.pe)+'%', 'neu','= 1 ÷ PE'],
+    ['中国10Y国债', fmt(c.cn10y)+'%', 'neu'],
+    ['美国10Y国债', fmt(c.us10y)+'%', 'neu'],
+    ['中国视角性价比', fmt(c.ey_cn)+'%', c.ey_cn>0?'down':'up', `历史分位 ${fmt(p,0)}%`],
+    ['美元视角性价比', fmt(c.ey_us)+'%', c.ey_us>0?'down':'up',
+      c.ey_us>0?'外资视角仍有吸引力':'外资视角缺乏吸引力'],
+    ['市赚率', fmt(c.pr,2), c.pr>1.2?'up':(c.pr<0.8?'down':'neu'), `ROE 假设 ${(c.roe*100).toFixed(0)}%`],
+  ]);
+  how('m2h','使用方法 · 中美股债性价比',[
+    ['看什么','<b>红线＝中国视角</b>（盈利收益率 − 中国10Y国债），<b>蓝线＝美元视角</b>（− 美国10Y国债）。数值越高，股票相对债券越划算。'],
+    ['怎么用','<b>高息红利股、小盘股</b>由内资定价 → 看<b>中国视角</b>；<b>核心资产／白马</b>外资参与度高 → 看<b>美元视角</b>。两者背离时，往往正解释了「指数不涨但红利涨」这类结构性行情。'],
+  ], `当前中国视角 <b class="${c.ey_cn>0?'down':'up'}">${fmt(c.ey_cn)}%</b>（历史分位 ${fmt(p,0)}%），`
+    + `美元视角 <b class="${c.ey_us>0?'down':'up'}">${fmt(c.ey_us)}%</b>（美债10Y ${fmt(c.us10y)}%）：`
+    + (c.ey_cn>0 && c.ey_us<0 ? '内资觉得股票划算、外资觉得不划算 —— <b>结构偏向内资主导的红利／小盘</b>。'
+      : c.ey_cn>0 && c.ey_us>0 ? '<b>两个视角都认定股票更有性价比</b>，权益整体占优。'
+      : '<b>两个视角下股票的吸引力都被债券压制</b>，权益配置需谨慎。'));
+
+  mk('m2c', m.data.dates, [
+    line('中国视角性价比', m.data.cols[0], C.up),
+    line('美元视角性价比', m.data.cols[1], C.blue),
+    line('', null, C.gray, {markLine:markLine({y:0,color:C.gray,label:'0'})})
+  ], {name:'%'}, {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['中国视角性价比','美元视角性价比']}});
+}
+
+// ---- M3 ----
+function rM3(){
+  const m=M.m3; if(!m) return; const c=m.cur;
+  // 数据为 rebased(2004-12-31=1000)，换算成累计涨幅(%)
+  const toGain = a => a.map(v => (v==null ? null : v/10-100));
+  const gH = c.hs300/10-100, gB = c.syn/10-100;
+  const pp = pctile(m.data.cols[2], c.dev);          // 偏离度历史分位
+  const dCls = c.dev<0?'down':(c.dev>60?'up':'neu');
+  $('m3k').innerHTML = kpi([
+    ['沪深300全收益累计涨幅', pct(gH), 'neu', c.date+' 起算'],
+    ['偏债混合累计涨幅', pct(gB), 'org','885003.WI'],
+    ['两线偏离度', pct(c.dev), dCls, `历史分位 ${fmt(pp,0)}%`],
+  ]);
+  how('m3h','使用方法 · 韭圈儿神奇指标',[
+    ['看什么','<b>主图</b>：红线＝<b>沪深300全收益指数(H00300)</b>累计涨幅，橙线＝万得偏债混合型基金指数(885003.WI)累计涨幅，两条都从共同起点 rebase（同起点）。<b>下图「偏离率」</b>：红线相对橙线的偏离（红线/橙线 − 1），并带两条参考线：<b>0%＝底部（两线重合，买入区）</b>、<b>+60%＝顶部（减仓区）</b>。'],
+    ['怎么用','核心一句：<b>沪深300基金累计涨幅跌到与偏债混合相若（偏离率→0，两线交会）时，往往就是市场见底时</b>；偏离率<b>大幅高于 60%</b> → 过热，顶部风险（2007 / 2015 顶部均超 60%）。'],
+    ['为什么','偏债混合基金长期年化约 6%~7%，靠时间稳定累积。当股市跌到连「慢慢变富」的债基都不如（偏离率趋近 0）时，说明情绪已极度悲观，权益中长期性价比极高。'],
+    ['口径','红线使用<b>沪深300全收益指数(H00300)</b>（中证官方全收益，含分红再投资），橙线为万得偏债混合基金指数(885003.WI)。全收益口径与偏债基金指数对比：牛市大幅领先偏债（如 2007、2015）、熊市低点回吐接近偏债线（2008 已破 0；2024 最低贴近但未破 0）。'],
+  ], `当前：沪深300全收益累计 <b>${pct(gH)}</b>，偏债混合累计 <b>${pct(gB)}</b>，偏离率 <b class="${dCls}">${pct(c.dev)}</b>（历史分位 ${fmt(pp,0)}%）——`
+    + (c.dev<0 ? '沪深300全收益累计涨幅已<b>跌破</b>偏债混合（偏离率&lt;0），两线交汇，历史上对应底部区域。'
+      : c.dev>60 ? '偏离率<b>已越过 +60%</b> 高危线（2007/2015 顶部同区间），提示顶部风险。'
+      : '偏离率介于 0~+60%，属中性区间。')
+    + ' <span class="cau">注意：作者本人强调该指标「没有坚实的理论基础」，2022 年后虽两次踩准底部，仍可能只是巧合，务必只作辅助参考。</span>');
+
+  mk('m3c', m.data.dates, [
+    line('沪深300全收益(H00300)', toGain(m.data.cols[0]), C.up),
+    line('偏债混合型基金指数(885003.WI)', toGain(m.data.cols[1]), C.org),
+  ], {name:'累计涨幅(%)'},
+   {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['沪深300全收益(H00300)','偏债混合型基金指数(885003.WI)']}});
+
+  // 下方「偏离率走势图」：0%=底部/买入、+60%=顶部/减仓（与主图共享时间轴、深色高对比）
+  chart($('m3c2'), baseOpt(Object.assign({
+    dataZoom:[{type:'inside',start:0,end:100},{type:'slider',height:16,bottom:6}],
+    grid:{left:52,right:20,top:22,bottom:52},
+    legend:{show:false},
+    xAxis:xAxis(m.data.dates),
+    yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},
+      axisLabel:{fontSize:11,color:'#8b95a3'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+    series:[
+      line('偏离率(%)', m.data.cols[2], '#1d4ed8', {lineStyle:{width:2,color:'#1d4ed8'},
+        itemStyle:{color:'#1d4ed8'}, areaStyle:{color:'rgba(29,78,216,.07)'}}),
+      line('', null, '#059669', {markLine:markLine({y:0,color:'#059669',label:'0%＝底部'})}),
+      line('', null, '#dc2626', {markLine:markLine({y:60,color:'#dc2626',label:'+60%＝顶部'})})
+    ]
+  })));
+  _linkCharts('m3c', 'm3c2');
+}
+
+// ---- M3b 韭圈儿神奇指标 · 基金净值口径（原著口径）----
+// data.cols = [易方达沪深300(110020)累计净值, 885003偏债混合]，均 rebase 到 100
+function rM3b(){
+  const m=M.m3b; if(!m) return; const c=m.cur;
+  const a=m.data.cols[0], b=m.data.cols[1];
+  if(!a || !b) return;
+  const dev = a.map((v,i)=> (v==null || b[i]==null || !b[i]) ? null : (v/b[i]*100-100));
+  const n = dev.length-1;
+  const devNow = dev[n];
+  if(devNow==null) return;
+  const gF = c.eq-100, gB = c.dm-100;
+  const pp = pctile(dev, devNow);
+  const dCls = devNow<0?'down':(devNow>60?'up':'neu');
+  const gap = (M.m3 && M.m3.cur && M.m3.cur.dev!=null) ? (devNow - M.m3.cur.dev) : null;
+  $('m3bk').innerHTML = kpi([
+    ['易方达沪深300(110020) 累计涨幅', pct(gF), 'neu', '自 '+m.data.dates[0]+' 起'],
+    ['偏债混合(885003) 累计涨幅', pct(gB), 'org', '同期对比基准'],
+    ['两线偏离度', pct(devNow), dCls, `历史分位 ${fmt(pp,0)}%`],
+    ['与 3（指数口径）之差', gap==null?'—':fmt(gap,1)+' pct', 'org', '同一思路、不同口径'],
+  ]);
+  how('m3bh','使用方法 · 韭圈儿指标（基金净值口径）',[
+    ['看什么','<b>主图</b>：红线＝<b>易方达沪深300(110020) 累计净值</b>涨幅，橙线＝万得偏债混合基金指数(885003.WI)涨幅，均从 <b>2009-08-26</b> 起归一化到 100。<b>下图「偏离率」</b>＝红线相对橙线的偏离，参考线 <b>0%＝极度悲观</b>。'],
+    ['怎么用','<b>偏离度 → 0 或跌破 0</b>：买沪深300基金还不如买偏债混合，情绪冰点，历史对应底部区。<span class="cau">注意：本口径历史区间仅 −39.24% ~ +5.33%，3 里那条「+60%＝顶部」阈值在本栏从未触及，不适用。</span>'],
+    ['与 3 的区别','3 用<b>沪深300全收益指数(H00300)</b>（含分红再投、零费用）；本栏用<b>扣费后的真实基金净值</b>。同区间实测：H00300 +109.48% vs 110020 +88.74%，17 年累计拖累 −9.90%（年化 −0.61%）。偏债腿同为 885003，两口径校验仅差 0.55pct。'],
+  ], `当前：易方达沪深300累计 <b>${pct(gF)}</b>，偏债混合累计 <b>${pct(gB)}</b>，偏离度 <b class="${dCls}">${pct(devNow)}</b>（历史分位 ${fmt(pp,0)}%）——`
+    + (devNow<0 ? '已<b>跑输</b>偏债混合，属偏冷区间；但分位 64.9% 说明历史上约 65% 的时间比现在更悲观，<b>尚未到极端底部</b>。'
+      : devNow>60 ? '偏离度已越过 +60% 高危线，提示顶部风险（本口径历史从未触及，若出现需警惕数据异常）。'
+      : '偏离度为正但不高，属中性区间。')
+    + ' <span class="cau">与 3（指数口径）相差约 53 个百分点，请固定一个口径看趋势，不要混用。</span>');
+
+  mk('m3bc', m.data.dates, [
+    line('易方达沪深300(110020)', a.map(v=> v==null?null:v-100), C.up),
+    line('偏债混合型基金指数(885003.WI)', b.map(v=> v==null?null:v-100), C.org),
+  ], {name:'累计涨幅(%)'},
+   {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['易方达沪深300(110020)','偏债混合型基金指数(885003.WI)']}});
+
+  // 偏离率走势图：0%＝极度悲观（本口径历史区间 −39.24% ~ +5.33%，不画 +60% 线）
+  chart($('m3bc2'), baseOpt(Object.assign({
+    dataZoom:[{type:'inside',start:0,end:100},{type:'slider',height:16,bottom:6}],
+    grid:{left:52,right:20,top:22,bottom:52},
+    legend:{show:false},
+    xAxis:xAxis(m.data.dates),
+    yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},
+      axisLabel:{fontSize:11,color:'#8b95a3'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+    series:[
+      line('偏离率(%)', dev, '#1d4ed8', {lineStyle:{width:2,color:'#1d4ed8'},
+        itemStyle:{color:'#1d4ed8'}, areaStyle:{color:'rgba(29,78,216,.07)'}}),
+      line('', null, '#059669', {markLine:markLine({y:0,color:'#059669',label:'0%＝极度悲观'})})
+    ]
+  })));
+  _linkCharts('m3bc', 'm3bc2');
+}
+
+// ---- M4 ----
+function rM4(){
+  const m=M.m4; if(!m) return; const c=m.cur;
+  $('m4k').innerHTML = kpi([
+    ['3年滚动年化', pct(c.r3), c.r3>30?'up':(c.r3<-10?'down':'neu'), c.date],
+    ['历史分位', fmt(pctile(m.data.cols[0],c.r3),0)+'%','neu'],
+    ['状态', c.r3>30?'泡沫区':(c.r3<-10?'底部区':'中性'),
+      c.r3>30?'up':(c.r3<-10?'down':'neu'), '阈值 +30% / −10%'],
+  ]);
+  how('m4h','使用方法 · 偏股基金 3 年滚动年化',[
+    ['看什么','蓝色区域＝过去 3 年的年化收益，对照 <b>+30%（泡沫）</b>与 <b>−10%（底部）</b>两条虚线。'],
+    ['怎么用','<b>&gt; +30%</b> 提示泡沫、情绪过热；<b>&lt; −10%</b> 提示底部、情绪冰点。它衡量的是普通基民过去三年<b>真实赚没赚钱</b>。'],
+  ], `当前 <b class="${c.r3>30?'up':(c.r3<-10?'down':'neu')}">${pct(c.r3)}</b>，历史分位 <b>${fmt(pctile(m.data.cols[0],c.r3),0)}%</b>：`
+    + (c.r3>30 ? '已进入<b>泡沫区</b>，宜降低权益敞口。'
+      : c.r3<-10 ? '处于<b>底部区</b>。历史规律是需要两波 −10% 的「双底」才走出阴霾，但历史不会简单重复。'
+      : '处于<b>中性区间</b>，情绪不冷不热。'));
+
+  const zz = m.data.cols[1];
+  const series = [
+    area('3年滚动年化', m.data.cols[0], C.blue, {lineStyle:{width:2.2}}),
+  ];
+  const yAx = zz != null
+    ? [{name:'%',axisLabel:{fontSize:11,color:'#8b95a3',formatter:'{value}%'}},
+       {name:'中证全指',position:'right',axisLabel:{fontSize:11,color:C.org}}]
+    : {name:'%',axisLabel:{fontSize:11,color:'#8b95a3',formatter:'{value}%'}};
+  if (zz != null) series.push(line('中证全指', zz, C.org, {yAxisIndex:1, lineStyle:{width:1.8}}));
+  series.push(
+    line('', null, C.up+'88', {markLine:markLine({y:30,color:C.up+'99',label:'+30% 泡沫'})}),
+    line('', null, C.down+'88', {markLine:markLine({y:-10,color:C.down+'99',label:'−10% 底部'})}),
+    line('', null, C.gray+'66', {markLine:markLine({y:0,color:C.gray+'66'})}),
+  );
+  mk('m4c', m.data.dates, series, yAx,
+   {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data: zz!=null?['3年滚动年化','中证全指']:['3年滚动年化']}});
+}
+
+// ---- M5 ----
+function rM5(){
+  const m=M.m5; if(!m) return; const c=m.cur;
+  // 原文口径：中证偏股基金(930950) vs Wind一级债基(885006)，2007-12-31=1000。
+  // 债基线(红线)＝估算顶线。判读看偏股线离红线的距离（比值），不分位：
+  //   比值 ≥1.03  偏股已上穿债基线 → 顶部警戒（2007 年以来仅 0.4% 交易日，2015-06=1.04 / 2021-02=1.08 两次大顶）
+  //   0.90~1.03   偏股正逼近债基线   → 顶部估算区（2026-06-30 峰值 0.92 后市场回调）
+  //   0.72~0.90   中性
+  //   <0.72       偏股大幅低于债基线 → 离估算顶较远（2024 年低至 0.51、2022 年 0.69）
+  const r=c.ratio, gap=c.gap;
+  // 偏股自下方触及债基线(比值上行穿越 1)＝顶部，标“顶”箭头；跳过锚点 artifacts + 120 日去抖
+  const rt = m.data.cols[2]; const crossIdx = new Set(); let _last=-999;
+  for (let i=1;i<rt.length;i++){ const a=rt[i-1]-1, b=rt[i]-1;
+    if (a<=0 && b>0 && i>250 && (i-_last)>120){ crossIdx.add(i); _last=i; } }
+  const pz = r>=1.03?'up':(r>=0.90?'org':(r>=0.72?'neu':'neu'));
+  const pt = r>=1.03?'顶部警戒':(r>=0.90?'逼近债基线':(r>=0.72?'中性':'离估算顶较远'));
+  $('m5k').innerHTML = kpi([
+    ['中证偏股基金(2007末起)', pct((c.eq-1000)/10,1), 'blue', '930950 · 2007-12-31=1000'],
+    ['一级债基 · 估算顶线(2007末起)', pct((c.bond-1000)/10,1), 'up', '885006.WI（红线）'],
+    ['偏股 ÷ 一级债基', fmt(r,2), pz, pt],
+    ['距债基线', gap>=0?('再涨 +'+fmt(gap,1)+'% 触及'):('已高出 '+fmt(-gap,1)+'%'), pz,
+      gap>=0?'离估算顶还有一段距离':'已进入顶部估算区'],
+  ]);
+  how('m5h','使用方法 · 偏股基金与一级债基顶部共振',[
+    ['看什么','<b>红线＝一级债基累计收益线(885006.WI，估算顶线)</b>，<b>蓝线＝中证偏股基金指数(930950)</b>，均从 <b>2007-12-31(2008 顶部标尺)=1000</b> 起，纵轴对数。<b>债基累计收益代表偏股基金「应该跑赢的上限」</b>：偏股线自下方<b>逼近、触及乃至上穿红线</b>的位置，就是估出的顶部区域；2015-06(比值1.04) 与 2021-02(比值1.08) 两次大顶都在这里见顶。'],
+    ['怎么用','<b>看偏股线离红线多远，不要用固定分位</b>：比值 ≥1.03（上穿红线，历史仅 0.4% 交易日）＝顶部警戒；0.90~1.03（逼近红线）＝顶部估算区，此时偏股距红线不足 11%，原文即用「偏股基金指数还有 X% 潜在涨幅就要触碰债基指数」来描述；0.72~0.90＝中性；&lt;0.72＝偏股大幅跑输债基、离估算顶很远（2024 年低至 0.51）。<b>「跌破债基线」不是信号</b>——2008 年后偏股约八成交易日都在红线下方，跌穿是常态。'],
+  ], `当前偏股 ÷ 一级债基 = <b class="${pz}">${fmt(r,2)}</b>（偏股自 2007 末累计 <b>${pct((c.eq-1000)/10,1)}</b>，红线债基累计 <b>${pct((c.bond-1000)/10,1)}</b>）：`
+    + (pz==='up' ? '偏股已<b>上穿估算顶线</b>，进入 2015-06 / 2021-02 同款的顶部警戒区。'
+      : (pz==='org' ? `偏股正<b>逼近估算顶线</b>（再涨 ${fmt(gap,1)}% 即触及），处于顶部估算区。`
+      : (r>=0.72 ? `偏股距估算顶线还有 ${fmt(gap,1)}%（比值 ${fmt(r,2)}），处于中性区间。`
+      : '偏股大幅跑输一级债基，离红线（估算顶）很远，顶部标尺暂不构成压力。')))
+    + ' <span class="cau">局限：起点取在顶部属事后诸葛，有效顶部样本仅 2015/2021 两次；「贴近红线」是位置标尺而非精确拐点，仅供参考。债基 Wind 数据手动低频拉取，非每日刷新。</span>');
+
+  mk('m5c', m.data.dates, [
+    line('一级债基(估算顶线) 885006.WI', m.data.cols[1], C.up,
+      {lineStyle:{width:2,color:C.up}, symbol:'none',
+       markPoint:{
+        symbol:'pin', symbolSize:40,
+        data:[{name:'偏股见顶处', coord:[c.rmaxd, m.data.cols[1][m.data.dates.indexOf(c.rmaxd)]],
+          itemStyle:{color:'#fff',borderColor:'#d14343',borderWidth:2},
+          label:{formatter:'估算顶线',color:'#d14343',fontSize:9}}],
+       }}),
+    line('中证偏股基金指数 930950', m.data.cols[0], C.blue,
+      {lineStyle:{width:1.6,color:C.blue}, symbol:'none',
+       markPoint:{
+        symbol:'circle', symbolSize:12,
+        data: m.data.dates.map((d,i)=>{
+          if(crossIdx.has(i)) return {name:'两线相等·触及估算顶', coord:[d, m.data.cols[0][i]],
+            itemStyle:{color:'#fff',borderColor:'#d14343',borderWidth:2},
+            symbol:'arrow', symbolSize:14, symbolRotate:180,
+            label:{formatter:'顶', color:'#d14343', fontSize:11, position:'top'}};
+          if(d===c.rmaxd) return {name:'比值峰值(偏股最高高于债基)', coord:[d, m.data.cols[0][i]],
+            itemStyle:{color:'#fff',borderColor:'#ea8b1f',borderWidth:2},
+            label:{formatter:'峰', color:'#ea8b1f', fontSize:10, position:'top'}};
+          if(d===c.rmind) return {name:'比值谷值(远离估算顶)', coord:[d, m.data.cols[0][i]],
+            itemStyle:{color:'#fff',borderColor:'#0f9960',borderWidth:2},
+            label:{formatter:'远离', color:'#0f9960', fontSize:9, position:'bottom'}};
+          return null;
+        }).filter(Boolean),
+      }}),
+  ], {type:'log',name:'累计收益(2007-12-31=1000)'},
+   {grid:{left:56,right:24,top:30,bottom:34},
+    dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['一级债基(估算顶线) 885006.WI','中证偏股基金指数 930950']},
+    tooltip:{trigger:'axis', confine:false, padding:[4,7], textStyle:{fontSize:11,lineHeight:15}, extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;', position:ttPos, formatter:function(ps){
+      if(!ps || !ps.length) return '';
+      const di = ps[0].dataIndex;
+      const rt = (m.data.cols && m.data.cols[2] && m.data.cols[2][di]!=null) ? m.data.cols[2][di] : null;
+      const row=p=>{ const v=p.value;
+        if(v===null||v===undefined||isNaN(v)) return null;
+        const nm = String(p.seriesName||'').split(' ')[0];
+        return p.marker + nm + ': ' + Number(v).toFixed(0); };
+      const rows=ps.map(row).filter(Boolean);
+      let out = (ps[0].axisValue||'') + '<br/>' + rows.join('<br/>');
+      if(rt!=null){
+        const tag = rt>=1 ? ' . 已触及估算顶线' : '';
+        out += '<br/><b style="color:#d14343">比值 ' + Number(rt).toFixed(3) + '</b>' + tag;
+      }
+      return out;
+    }}});
+}
+
+// ---- M5b ----
+function rM5b(){
+  const m=M.m5b; if(!m) return; const c=m.cur;
+  // @qzy69 原版基金口径：中证偏股基金(930950) vs 易方达增强回报(110017)，2008-03-19=1000。
+  // 与 M5 同构：紫线(易方达累计净值)=债基收益线=估算顶线，判读看偏股线离紫线的距离。
+  //   ≥1.10  上穿易方达线 → 顶部警戒（仅 0.3% 交易日；2015-06=1.13 / 2021-02=1.13 两次大顶）
+  //   0.97~1.10  逼近易方达线 → 顶部估算区（2026-06-30=1.04）
+  //   0.80~0.97  中性
+  //   <0.80  大幅低于易方达线 → 离估算顶较远（2024 年低至 0.57）
+  const r=c.ratio, gap=c.gap;
+  // 偏股自下方触及易方达线(比值上行穿越 1)＝顶部，标“顶”箭头；跳过锚点 artifacts + 120 日去抖
+  const rt = m.data.cols[2]; const crossIdx = new Set(); let _last=-999;
+  for (let i=1;i<rt.length;i++){ const a=rt[i-1]-1, b=rt[i]-1;
+    if (a<=0 && b>0 && i>250 && (i-_last)>120){ crossIdx.add(i); _last=i; } }
+  const pz = r>=1.10?'up':(r>=0.97?'org':(r>=0.80?'neu':'neu'));
+  const pt = r>=1.10?'顶部警戒':(r>=0.97?'逼近债基线':(r>=0.80?'中性':'离估算顶较远'));
+  $('m5bk').innerHTML = kpi([
+    ['中证偏股基金(成立起)', pct((c.eq-1000)/10,1), 'blue', '930950 · 2008-03-19=1000'],
+    ['易方达增强回报(成立起)', pct((c.bond-1000)/10,1), 'pur', '110017 累计净值（紫线）'],
+    ['偏股 ÷ 易方达', fmt(r,2), pz, pt],
+    ['距易方达线', gap>=0?('再涨 +'+fmt(gap,1)+'% 触及'):('已高出 '+fmt(-gap,1)+'%'), pz,
+      gap>=0?'离估算顶还有一段距离':'已进入顶部估算区'],
+  ]);
+  how('m5bh','使用方法 · 偏股基金 vs 易方达增强回报',[
+    ['看什么','<b>紫线＝易方达增强回报(110017)累计净值</b>（@qzy69 原始的一级债基，含打新/可转债增强），<b>蓝线＝中证偏股基金指数(930950)</b>，均从首个共同交易日（2008-03-19）归一化到 1000，纵轴对数。债基累计收益＝偏股基金「应该跑赢的上限」：<b>偏股线贴近/上穿紫线的位置，就是估出的顶部</b>。'],
+    ['怎么用','<b>看偏股线离紫线多远</b>：比值 ≥1.10（上穿紫线，历史仅 0.3% 交易日）＝顶部警戒——2015-06(1.13) 与 2021-02(1.13) 两次大顶在此；0.97~1.10＝逼近紫线/顶部估算区（2026-06-30 达 1.04，随后市场回调）；0.80~0.97＝中性；&lt;0.80＝大幅低于紫线、离估算顶远（2024 年低至 0.57）。<b>「贴近甚至跌破」紫线不是底部信号</b>——2008 年后偏股约七成交易日在紫线下方，跌穿是常态。'],
+  ], `当前偏股 ÷ 易方达增强回报 = <b class="${pz}">${fmt(r,2)}</b>（偏股自 2008-03 累计 <b>${pct((c.eq-1000)/10,1)}</b>，易方达累计 <b>${pct((c.bond-1000)/10,1)}</b>）：`
+    + (pz==='up' ? '偏股已<b>上穿易方达累计收益线</b>，进入 2015-06 / 2021-02 同款的顶部警戒区。'
+      : (pz==='org' ? `偏股正<b>逼近易方达线</b>（再涨 ${fmt(gap,1)}% 即触及），处于顶部估算区。`
+      : (r>=0.80 ? `偏股距易方达线还有 ${fmt(gap,1)}%（比值 ${fmt(r,2)}），处于中性区间。`
+      : '偏股大幅跑输易方达增强回报，离紫线（估算顶）很远。')))
+    + ' <span class="cau">局限：起点取在顶部属事后诸葛，有效顶部样本仅 2015/2021 两次；单只基金净值受经理操作、申赎影响，作基准略主观。净值序列已用 Wind 官方 110017.OF 复核零偏差。</span>');
+
+  mk('m5bc', m.data.dates, [
+    line('易方达增强回报(估算顶线) 110017', m.data.cols[1], C.pur,
+      {lineStyle:{width:2,color:C.pur}, symbol:'none'}),
+    line('中证偏股基金指数 930950', m.data.cols[0], C.blue,
+      {lineStyle:{width:1.6,color:C.blue}, symbol:'none',
+       markPoint:{
+        symbol:'circle', symbolSize:12,
+        data: m.data.dates.map((d,i)=>{
+          if(crossIdx.has(i)) return {name:'两线相等·触及估算顶', coord:[d, m.data.cols[0][i]],
+            itemStyle:{color:'#fff',borderColor:'#8a4bd8',borderWidth:2},
+            symbol:'arrow', symbolSize:14, symbolRotate:180,
+            label:{formatter:'顶', color:'#8a4bd8', fontSize:11, position:'top'}};
+          if(d===c.rmaxd) return {name:'比值峰值(偏股最高高于易方达)', coord:[d, m.data.cols[0][i]],
+            itemStyle:{color:'#fff',borderColor:'#ea8b1f',borderWidth:2},
+            label:{formatter:'峰', color:'#ea8b1f', fontSize:10, position:'top'}};
+          if(d===c.rmind) return {name:'比值谷值', coord:[d, m.data.cols[0][i]],
+            itemStyle:{color:'#fff',borderColor:'#0f9960',borderWidth:2},
+            label:{formatter:'远离', color:'#0f9960', fontSize:9, position:'bottom'}};
+          return null;
+        }).filter(Boolean),
+      }}),
+  ], {type:'log',name:'累计净值(首个共同交易日=1000)'},
+   {grid:{left:52,right:24,top:30,bottom:34},
+    dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['易方达增强回报(估算顶线) 110017','中证偏股基金指数 930950']},
+    tooltip:{trigger:'axis', confine:false, padding:[4,7], textStyle:{fontSize:11,lineHeight:15}, extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;', position:ttPos, formatter:function(ps){
+      if(!ps || !ps.length) return '';
+      const di = ps[0].dataIndex;
+      const rt = (m.data.cols && m.data.cols[2] && m.data.cols[2][di]!=null) ? m.data.cols[2][di] : null;
+      const row=p=>{ const v=p.value;
+        if(v===null||v===undefined||isNaN(v)) return null;
+        const nm = String(p.seriesName||'').split(' ')[0];
+        return p.marker + nm + ': ' + Number(v).toFixed(0); };
+      const rows=ps.map(row).filter(Boolean);
+      let out = (ps[0].axisValue||'') + '<br/>' + rows.join('<br/>');
+      if(rt!=null){
+        const tag = rt>=1 ? ' . 已触及估算顶线' : '';
+        out += '<br/><b style="color:#d14343">比值 ' + Number(rt).toFixed(3) + '</b>' + tag;
+      }
+      return out;
+    }}});
+}
+
+// ---- 三棱镜 ----
+function rPrism(key, ids, titleEl, idx){
+  const m=M[key]; if(!m) return;
+  const c=m.cur, s=countSig(m);
+  const badge = s.n>=2 ? sig('hot','⚠ 三选二：轮动信号触发') : (s.n===1?sig('mid','1/3 信号') : sig('mid','无信号'));
+  $(titleEl).innerHTML = `<div class="sub">${idx?idx+' ':''}${m.labels[0]} ÷ ${m.labels[1]}</div><div class="kpis">
+    <div class="kpi"><div class="l">${m.labels[0]} ÷ ${m.labels[1]}</div><div class="v blue">${fmt(c.ratio,4)}</div><div class="s">${c.date}</div></div>
+    <div class="kpi"><div class="l">布林上轨 / 下轨</div><div class="v" style="font-size:15px">${fmt(c.boll_up,3)} / ${fmt(c.boll_dn,3)}</div><div class="s">252日 ±2σ</div></div>
+    <div class="kpi"><div class="l">五年均线</div><div class="v org">${fmt(c.ma5,4)}</div><div class="s">${c.ratio<c.ma5?'<span class="down">已跌破</span>':'<span class="up">在上方</span>'}</div></div>
+    <div class="kpi"><div class="l">40日收益差 / 均线</div><div class="v" style="font-size:15px"><span class="${cls(c.d40)}">${pct(c.d40,1)}</span> / <span class="${cls(c.d40ma)}">${pct(c.d40ma,1)}</span></div><div class="s">252日均线</div></div>
+    <div class="kpi" style="grid-column:span 2"><div class="l">信号</div><div style="margin-top:5px">${badge}</div><div class="s">${s.txt}</div></div>
+  </div>`;
+
+  how(key+'h','使用方法 · 轮动三棱镜（'+m.labels[0]+' ÷ '+m.labels[1]+'）',[
+    ['看什么','① 比值是否突破 <b>252 日布林线</b>上下轨；② 比值是否跌破 <b>五年均线</b>；③ <b>40日收益差</b>的 252 日均线是否<b>穿越 0 轴</b>（必须是穿越动作，不是单纯在 0 轴上方/下方）。'],
+    ['怎么用','三个信号<b>凑齐两个</b>，就应对一轮轮动<b>高度重视</b>。比值<b>上行</b>＝<b>'+m.labels[0]+'</b>走强，比值<b>下行</b>＝<b>'+m.labels[1]+'</b>走强。'],
+  ], `当前命中 <b>${s.n}/3</b> 个信号：${s.txt}。`
+    + (s.n>=2 ? ' <b class="up">已达「三选二」，建议重点关注风格切换。</b>'
+      : s.n===1 ? ' 仅 1 个信号，尚不足以确认轮动，维持现有配置。'
+      : ' 暂无信号触发，维持现有配置。')
+    + ' <span class="cau">注意：并非所有品种都适合趋势思路 —— 若比值长期在固定区间内来回震荡（如部分小盘风格对），追趋势容易被反复打脸，此时高抛低吸更合适。</span>');
+
+  mk(ids[0], m.ratio.dates, [
+    line('比值', m.ratio.cols[0], C.blue),
+    line('布林中轨', m.ratio.cols[1], C.gray, {lineStyle:{width:1,type:'dashed'}}),
+    area('布林上轨', m.ratio.cols[2], C.up),
+    area('布林下轨', m.ratio.cols[3], C.up),
+  ], {}, {title:{text:'① 比值 vs 252日布林线',left:'center',top:0,textStyle:{fontSize:11.5,color:'#5b6472',fontWeight:600}},
+     legend:{top:16,itemWidth:12,itemHeight:7,textStyle:{fontSize:10,color:'#5b6472'},data:['比值','布林中轨','布林上轨','布林下轨']},
+     grid:{left:50,right:14,top:44,bottom:20}});
+
+  mk(ids[1], m.ma5.dates, [
+    line('比值', m.ma5.cols[0], C.blue),
+    line('五年均线', m.ma5.cols[1], C.org),
+  ], {}, {title:{text:'② 比值 vs 五年均线',left:'center',top:0,textStyle:{fontSize:11.5,color:'#5b6472',fontWeight:600}},
+     legend:{top:16,itemWidth:12,itemHeight:7,textStyle:{fontSize:10,color:'#5b6472'},data:['比值','五年均线']},
+     grid:{left:50,right:14,top:44,bottom:20}});
+
+  mk(ids[2], m.d40.dates, [
+    line('40日收益差', m.d40.cols[0], C.pur,
+      {lineStyle:{width:2.2,color:C.pur}, areaStyle:{color:C.pur+'14'}}),
+    line('252日均线', m.d40.cols[1], C.up, {lineStyle:{width:1.3,color:C.up,type:'dashed'}}),
+    line('', null, C.gray, {markLine:markLine({y:0,color:C.gray,label:'0'})}),
+  ], {name:'百分点'}, {title:{text:'③ 40日收益差 + 252日均线',left:'center',top:0,textStyle:{fontSize:11.5,color:'#5b6472',fontWeight:600}},
+     legend:{top:16,itemWidth:12,itemHeight:7,textStyle:{fontSize:10,color:'#5b6472'},data:['40日收益差','252日均线']},
+     grid:{left:50,right:14,top:44,bottom:20}});
+
+  // ④ 两条指数走势叠加（累计收益率%，从 2019 年起算，m6a/m6b/m7 展示）
+  if(['m6a','m6b','m7'].includes(key) && m.indices && m.indices.cols && m.indices.cols.length === 2) {
+    const cid = ({m6a:'m6a4', m6b:'m6b4', m7:'m7a4'})[key];
+    if(!document.getElementById(cid)) return;
+    const ic0 = m.indices.cols[0], ic1 = m.indices.cols[1], dates = m.indices.dates;
+    // 找到 2019-01-01 及之后的第一个交易日
+    let baseIdx = dates.findIndex(d => d >= '2019-01-01');
+    if(baseIdx < 0) baseIdx = 0;
+    const b0 = ic0[baseIdx], b1 = ic1[baseIdx];
+    const nc0 = ic0.map((v) => v && b0 ? ((v / b0 - 1) * 100) : null);
+    const nc1 = ic1.map((v) => v && b1 ? ((v / b1 - 1) * 100) : null);
+    // X 轴也从 2019 年起
+    const sDates = dates.slice(baseIdx), sNc0 = nc0.slice(baseIdx), sNc1 = nc1.slice(baseIdx);
+    // 成长下穿价值标记（蓝线从价值线上方穿到下方，仅 m6a）
+    let crossMark = null;
+    if(key === 'm6a') {
+      const pts = [];
+      for(let i = 1; i < sDates.length; i++) {
+        const a0 = sNc0[i-1], a1 = sNc0[i], b0 = sNc1[i-1], b1 = sNc1[i];
+        if(a0==null||a1==null||b0==null||b1==null) continue;
+        if(a0 > b0 && a1 < b1) {
+          const da = a0 - b0, db = a1 - b1;
+          const usePrev = da <= Math.abs(db);
+          pts.push(usePrev ? [sDates[i-1], a0] : [sDates[i], a1]);
+        }
+      }
+      crossMark = {symbol:'circle', symbolSize:9, z:10,
+        itemStyle:{color:'#fff', borderColor:'#dc2626', borderWidth:2},
+        label:{show:false},
+        data: pts.map(p => ({coord:p, name:'成长下穿价值'}))};
+    }
+    mk(cid, sDates, [
+      line(m.labels[0], sNc0, C.blue, {symbol:'circle',symbolSize:1.5, markPoint:crossMark||undefined}),
+      line(m.labels[1], sNc1, C.org, {symbol:'circle',symbolSize:1.5}),
+    ], {name:'累计收益率(%)',axisLabel:{formatter:'{value}%'}},
+       {title:{text:'④ 两条指数走势叠加（累计收益率%，2019 年起算）',left:'center',top:0,textStyle:{fontSize:11.5,color:'#5b6472',fontWeight:600}},
+         legend:{top:16,itemWidth:16,itemHeight:7,textStyle:{fontSize:10,color:'#5b6472'},data:[m.labels[0], m.labels[1]]},
+         dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+         grid:{left:50,right:14,top:44,bottom:20}});
+  }
+
+  // ⑥ 长期走势叠加（累计收益率%，2008 年起算，仅 m6a 展示）
+  if(key === 'm6a' && m.indices && m.indices.cols && m.indices.cols.length === 2) {
+    const cid6 = 'm6a6';
+    if(!document.getElementById(cid6)) return;
+    const ic0 = m.indices.cols[0], ic1 = m.indices.cols[1], dates = m.indices.dates;
+    let baseIdx6 = dates.findIndex(d => d >= '2008-01-01');
+    if(baseIdx6 < 0) baseIdx6 = 0;
+    const b0 = ic0[baseIdx6], b1 = ic1[baseIdx6];
+    const n0 = ic0.map((v) => v && b0 ? ((v / b0 - 1) * 100) : null);
+    const n1 = ic1.map((v) => v && b1 ? ((v / b1 - 1) * 100) : null);
+    const sD6 = dates.slice(baseIdx6), sN0 = n0.slice(baseIdx6), sN1 = n1.slice(baseIdx6);
+    // 成长下穿价值标记（长期图）
+    const pts6 = [];
+    for(let i = 1; i < sD6.length; i++) {
+      const a0 = sN0[i-1], a1 = sN0[i], b0 = sN1[i-1], b1 = sN1[i];
+      if(a0==null||a1==null||b0==null||b1==null) continue;
+      if(a0 > b0 && a1 < b1) {
+        const da = a0 - b0, db = a1 - b1;
+        const usePrev = da <= Math.abs(db);
+        pts6.push(usePrev ? [sD6[i-1], a0] : [sD6[i], a1]);
+      }
+    }
+    const crossMark6 = {symbol:'circle', symbolSize:9, z:10,
+      itemStyle:{color:'#fff', borderColor:'#dc2626', borderWidth:2},
+      label:{show:false},
+      data: pts6.map(p => ({coord:p, name:'成长下穿价值'}))};
+    mk(cid6, sD6, [
+      line(m.labels[0], sN0, C.blue, {symbol:'circle',symbolSize:1.5, markPoint:crossMark6}),
+      line(m.labels[1], sN1, C.org, {symbol:'circle',symbolSize:1.5}),
+    ], {name:'累计收益率(%)',axisLabel:{formatter:'{value}%'}},
+       {title:{text:'⑥ 两条指数长期走势叠加（累计收益率%，2008 年起算）',left:'center',top:0,textStyle:{fontSize:11.5,color:'#5b6472',fontWeight:600}},
+         legend:{top:16,itemWidth:16,itemHeight:7,textStyle:{fontSize:10,color:'#5b6472'},data:[m.labels[0], m.labels[1]]},
+         dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+         grid:{left:50,right:14,top:44,bottom:20}});
+  }
+}
+
+// ---- M8 ----
+function rM8(){
+  const m=M.m8; if(!m) return; const c=m.cur;
+  $('m8k').innerHTML = kpi([
+    ['中证红利股息率', fmt(c.dy)+'%', 'neu', c.date],
+    ['中国10Y国债', fmt(c.cn10y)+'%', 'neu'],
+    ['风险溢价(股息率−国债)', fmt(c.spread)+'%', c.spread>2?'down':'up',
+      c.spread>2?'对险资有吸引力':'性价比被压缩'],
+    ['股息率历史分位', fmt(pctile(m.data.cols[0],c.dy),0)+'%', 'neu'],
+  ]);
+  how('m8h','使用方法 · 中证红利股息率',[
+    ['看什么','<b>红线＝中证红利股息率</b>，<b>紫线＝风险溢价</b>（股息率 − 中国10年期国债）。'],
+    ['怎么用','股息率处于<b>历史高位</b>、且显著高于国债时，红利的<b>安全边际厚</b>；被压缩到接近甚至<b>低于国债</b>时，红利的性价比就消失了。险资以「票息 vs 债息」考核，所以风险溢价才是定价的<b>边际力量</b>。'],
+  ], `当前股息率 <b>${fmt(c.dy)}%</b>（历史分位 <b>${fmt(pctile(m.data.cols[0],c.dy),0)}%</b>），`
+    + `10Y国债 ${fmt(c.cn10y)}%，风险溢价 <b class="${c.spread>2?'down':'up'}">${fmt(c.spread)}%</b>：`
+    + (c.spread>2 ? '股息率显著跑赢国债，<b>对险资仍有吸引力</b>，安全边际较厚。'
+      : c.spread>0 ? '股息率仅略高于国债，<b>性价比被压缩</b>，需降低预期。'
+      : '股息率已<b>低于</b>国债，红利相对债券的性价比基本消失。'));
+
+  const lb = m.labels || ['中证红利股息率','风险溢价(减10Y国债)'];
+  const cols = m.data.cols.slice(0, lb.length);
+  mk('m8c', m.data.dates, [
+    line(lb[0], cols[0], C.up),
+    area(lb[1], cols[1], C.pur),
+    cols[2] ? line(lb[2], cols[2], C.org, {lineStyle:{width:1,type:'dashed'}}) : null,
+  ].filter(Boolean), {name:'%'}, {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:lb}});
+}
+
+// ---- M9 ----
+function rM9(){
+  const m=M.m9; if(!m) return; const c=m.cur;
+  $('m9k').innerHTML = kpi([
+    ['40日收益差', pct(c.d40,1), cls(c.d40), c.date],
+    ['252日均线', pct(c.d40ma,1), cls(c.d40ma)],
+    ['提示', c.d40>8?'短期透支，勿追高':(c.d40<-4?'回落至低位，关注买点':'中性'),
+      c.d40>8?'up':(c.d40<-4?'down':'neu'), '中证红利 − 中证A股'],
+  ]);
+  how('m9h','使用方法 · 红利 40 日收益差（vs 中证A股）',[
+    ['看什么','<b>紫线＝中证红利相对中证A股的 40 日收益差</b>（百分点），<b>红线＝其 252 日均线</b>，用来过滤噪音、确认「不是一日游」。'],
+    ['怎么用','收益差<b>过高</b>：红利短期透支，<b>不要追高</b>。静待回落到<b>零轴甚至更低</b>（历史上常见的更低点），此时才是红利的相对买点。'],
+  ], `当前 40 日收益差 <b class="${cls(c.d40)}">${pct(c.d40,1)}</b>、252 日均线 <b class="${cls(c.d40ma)}">${pct(c.d40ma,1)}</b>：`
+    + (c.d40>8 ? '红利短期明显跑赢，<b>不建议追高</b>，等回落。'
+      : c.d40<-4 ? '已回落至<b>相对低位</b>，可<b>关注红利的相对买点</b>。'
+      : '处于中性区间。'));
+
+  mk('m9c', m.data.dates, [
+    line('40日收益差', m.data.cols[0], C.pur,
+      {lineStyle:{width:2.4,color:C.pur}, areaStyle:{color:C.pur+'14'}}),
+    line('252日均线', m.data.cols[1], C.up, {lineStyle:{width:1.3,color:C.up,type:'dashed'}}),
+    line('', null, C.gray, {markLine:markLine({y:0,color:C.gray,label:'0'})}),
+  ], {name:'百分点'}, {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['40日收益差','252日均线']}});
+}
+
+// ---- M10 ----
+function rReg(k, tr){
+  const m=M[k]; if(!m) return; const c=m.cur;
+  const zCls = c.z>1.2?'up':(c.z<-1?'down':'neu');
+  $(k+'k').innerHTML = kpi([
+    ['中证红利'+(tr?'全收益':''), fmt(c.close,0), 'neu', c.date],
+    ['回归中枢', fmt(c.fit,0), 'org'],
+    ['上轨(+1.5σ)', fmt(c.up,0), 'up'],
+    ['下轨(−1.5σ)', fmt(c.dn,0), 'down','绝对收益视角买点参考'],
+    ['隐含年化', fmt(c.ann)+'%', 'neu','斜率×250交易日'],
+    ['Z 值', fmt(c.z,2), zCls, c.z<-1?'接近下轨':(c.z>1.2?'贴上轨':'通道内')],
+  ]);
+  how(k+'h','使用方法 · 中证红利回归通道'+(tr?'（全收益版）':''),[
+    ['看什么','<b>红线＝中证红利'+(tr?'全收益': '')+'</b>，<b>紫线＝200日均线</b>（趋势参考，价格指数版中 MA200 即常说的「年线」附近的中长期成本线），<b>橙虚线＝对数回归中枢</b>，上下轨＝<b>±1.5σ</b> 通道。重点看当前点位在通道中的位置，以及右下角的 <b>Z 值</b>。'],
+    ['怎么用','<b>下轨</b>可作为绝对收益视角下的<b>买点参考</b>；<b>Z 值显著为负</b>（贴近下轨）说明长期回归的潜在空间大；<b>Z 值显著为正</b>（贴上轨甚至突破）则说明短期透支。'],
+    ...(tr?[['与 M10 的区别','本张用<b>官方全收益指数 H00922</b>（含分红再投），隐含年化比价格指数版高约 2%，更贴合原文口径。通道要看相对位置（Z 值），不要看绝对点位。']]:[]),
+  ], `当前 Z = <b class="${zCls}">${fmt(c.z,2)}</b>`
+    + (c.z<-1 ? '，已接近通道<b>下轨</b>，长期回归的潜在空间较大。'
+      : c.z>1.2 ? '，已贴近<b>上轨</b>，短期透支、需谨慎。'
+      : '，位于通道<b>中部</b>，无明显极值信号。')
+    + ` 通道隐含年化 <b>${fmt(c.ann)}%</b>。`
+    + (tr
+      ? ' <span class="cau">版本说明：与第 10 张同算法，仅把原始序列换成中证红利<b>官方全收益指数 H00922</b>（含分红再投），隐含年化比价格指数版高约 2%。</span>'
+      : ' <span class="cau">注意：回归线基于 2016 年以来全部数据，每次重算时年化与通道都会轻微变化；本张用价格指数，隐含年化比全收益口径低约 2%，全收益版见 10b。</span>'));
+
+  mk(k+'c', m.data.dates, [
+    line('中证红利'+(tr?'全收益':''), m.data.cols[0], C.up, {lineStyle:{width:2.2,color:C.up},itemStyle:{color:C.up},z:3}),
+    line('200日均线', m.data.cols[4], C.pur, {lineStyle:{width:1.4,color:C.pur+'bb'},itemStyle:{color:C.pur},z:2}),
+    line('对数回归中枢', m.data.cols[1], C.org, {lineStyle:{width:1.6,type:'dashed',color:C.org},itemStyle:{color:C.org},z:2}),
+    line('上轨 +1.5σ', m.data.cols[2], C.blue, {lineStyle:{width:1.2,type:'dashed',color:C.blue+'99'},
+      itemStyle:{color:C.blue},areaStyle:{color:C.blue+'12'},z:1}),
+    line('下轨 −1.5σ', m.data.cols[3], C.blue, {lineStyle:{width:1.2,type:'dashed',color:C.blue+'66'},
+      itemStyle:{color:C.blue},areaStyle:{color:C.blue+'0c'},z:1}),
+  ], {type:'log',name:'点位(对数)',
+    min:v => (v.min>0 ? v.min*0.92 : v.min),
+    max:v => v.max*1.08},
+   {grid:{left:56,right:24,top:34,bottom:34},
+    dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['中证红利'+(tr?'全收益':''),'200日均线','对数回归中枢','上轨 +1.5σ','下轨 −1.5σ']}});
+}
+function rM10(){ rReg('m10',false); }
+function rM10b(){ rReg('m10b',true); }
+
+// ---- M11 ----
+function rM11(){
+  const m=M.m11; if(!m) return; const c=m.cur;
+  $('m11k').innerHTML = kpi([
+    ['40日收益差', pct(c.d40,1), cls(c.d40), c.date],
+    ['252日均线', pct(c.d40ma,1), cls(c.d40ma)],
+    ['提示', c.d40>8?'偏向港股高股息':(c.d40<-4?'偏向A股红利':'中性'),
+      c.d40>8?'up':(c.d40<-4?'down':'neu'), '中证红利 − 港股通高股息'],
+  ]);
+  how('m11h','使用方法 · 红利 A股 vs 港股 40日收益差',[
+    ['看什么','<b>紫线＝A股红利相对港股高股息的 40 日收益差</b>（百分点），<b>红线＝252 日均线</b>。正值＝A股红利跑赢，负值＝港股高股息跑赢。'],
+    ['怎么用','收益差<b>过高</b>：A股红利短期跑赢太多 → <b>多买点港股高股息</b>；收益差<b>过低</b>：港股占优已持续一段 → <b>多多考虑中证红利</b>。'],
+  ], `当前 40 日收益差 <b class="${cls(c.d40)}">${pct(c.d40,1)}</b>、252 日均线 <b class="${cls(c.d40ma)}">${pct(c.d40ma,1)}</b>：`
+    + (c.d40>8 ? 'A股红利短期明显占优，可<b>倾向港股高股息</b>。'
+      : c.d40<-4 ? '港股高股息相对占优已持续，可<b>倾向A股红利</b>。'
+      : '两者相对均衡。')
+    + ' <span class="cau">关键提醒：港股通红利需缴 20% 股息红利税，实际到手收益要打折；本页港股指数已用 CNY 口径（930914）剔除汇率影响，但税负必须自己算进去。</span>');
+
+  mk('m11c', m.data.dates, [
+    line('40日收益差', m.data.cols[0], C.pur,
+      {lineStyle:{width:2.4,color:C.pur}, areaStyle:{color:C.pur+'14'}}),
+    line('252日均线', m.data.cols[1], C.up, {lineStyle:{width:1.3,color:C.up,type:'dashed'}}),
+    line('', null, C.gray, {markLine:markLine({y:0,color:C.gray,label:'0'})}),
+  ], {name:'百分点'}, {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+    legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['40日收益差','252日均线']}});
+}
+
+// ---- M12 沪深300 估值一图看全 ----
+function rM12(){
+  const m=M.m12; if(!m) return; const c=m.cur;
+  const peCls = c.pe_pct>70?'up':(c.pe_pct<30?'down':'neu');
+  const prCls = c.pr>1.2?'up':(c.pr<0.8?'down':'neu');
+  $('m12k').innerHTML = kpi([
+    ['沪深300全收益', fmt(c.hs300,0), 'neu', c.date],
+    ['市盈率 TTM', fmt(c.pe,2), peCls, `历史分位 ${fmt(c.pe_pct,0)}%`],
+    ['市赚率 PR', fmt(c.pr,2), prCls, `历史分位 ${fmt(c.pr_pct,0)}%`],
+    ['ROE(推算)', fmt(c.roe*100,1)+'%', 'neu', 'PB ÷ PE'],
+  ]);
+
+  // ① 走势
+  mk('m12c', m.data.dates, [line('沪深300全收益(H00300)', m.data.cols[0], C.up)],
+     {type:'log', name:'点位(对数)'},
+     {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+      legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['沪深300全收益(H00300)']}});
+
+  // ② 市盈率 TTM
+  mk('m12c2', m.data.dates, [line('市盈率TTM', m.data.cols[1], C.blue)],
+     {name:'倍'},
+     {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+      legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['市盈率TTM']}});
+
+  // ③ 市赚率 PR
+  mk('m12c3', m.data.dates, [
+      line('市赚率PR', m.data.cols[2], C.org),
+      line('', null, C.gray, {markLine:markLine({y:1,color:C.gray,label:'1PR 合理估值'})}),
+    ], {name:'PR'},
+     {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
+      legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['市赚率PR']}});
+
+  how('m12h','使用方法 · 三图上下对照',[
+    ['① 走势','沪深300全收益(H00300)走势，是<b>基准参照</b>。把它和下面两张估值图上下对齐着看，就能检验估值指标在「猜顶」「估底」上到底准不准。'],
+    ['② 市盈率','最经典的估值指标，看当前 PE 处在历史什么分位。<b>它只看价格与盈利、不考虑盈利质量</b>，单独用容易掉进「便宜没好货」的估值陷阱。'],
+    ['③ 市赚率','<code>PR = PE / ROE</code>，<b>1PR = 合理估值</b>，&gt;1PR 高估、&lt;1PR 低估。它把质量因子 ROE 纳入，专门识破「市盈率不高、但其实已经贵了」的情形。'],
+  ], `当前市盈率 <b class="${peCls}">${fmt(c.pe,2)}</b> 倍（历史分位 ${fmt(c.pe_pct,0)}%），市赚率 <b class="${prCls}">${fmt(c.pr,2)} PR</b>（历史分位 ${fmt(c.pr_pct,0)}%），ROE 约 <b>${fmt(c.roe*100,1)}%</b> —— `
+    + (c.pr>1.2 ? '市赚率<b>明显高于 1PR</b>，考虑 ROE 后已偏高估。'
+      : c.pr<0.8 ? '市赚率<b>低于 1PR</b>，考虑 ROE 后处于低估区间。'
+      : '市赚率在 <b>1PR 附近</b>，属合理估值区间。')
+    + ' <span class="cau">务必三图对照：若市盈率看着不高、但市赚率已高，往往是 ROE 回落造成的<b>隐性高估</b> —— 这正是 2018 年初与 2021 年初的教训（当时单看 PE 都低于 2015 年高点，看 PR 却已相当甚至超出）。</span>');
+}
+
+// ---- M13 交易集中度 ----
+function rM13(){
+  const m=M.m13; if(!m) return; const c=m.cur;
+  const rCls = c.ratio>=45?'up':(c.ratio>=38?'mid':'neu');
+  // 顶部用收盘价折线（与其余指标框同风格）；ohlc 数据项 [open,close,low,high]
+  const closes = (m.ohlc&&m.ohlc.map)? m.ohlc.map(v=>v[1]) : [];
+  const showKL = closes.length > 60;
+  if($('m13sub1')) $('m13sub1').innerHTML = showKL
+    ? '① ' + (c.idx_label||'中证全指') + ' 收盘走势（与下方集中度对照）'
+    : '① 走势暂缺（中证全指行情缓存不可用，仅展示集中度比值）';
+  $('m13k').innerHTML = kpi([
+    ['前5%成交额占比', fmt(c.ratio,2)+'%', rCls, c.date],
+    ['拥挤警戒线', '45%', c.ratio>=45?'up':'neu', '突破后历史多对应顶部/风格切换/抱团瓦解'],
+    ['历史分位', fmt(c.pct,0)+'%', c.pct>80?'up':(c.pct<20?'down':'neu'), '最新值在历史序列中的位置'],
+    ['口径', '估算+实测', 'neu', c.method + '；顶部走势=' + (c.idx_label||'中证全指(000985)')],
+  ]);
+  how('m13h','使用方法 · 交易集中度(成交额排名前5%占比)',[
+    ['看什么','<b>橙线＝日度</b>前5%成交额集中度（全市场成交最活跃的约 270 只股票吃掉的总成交额 ÷ 全A总成交额）；<b>③ 紫线＝周度</b>（自然周累计）、<b>④ 蓝线＝月度</b>（自然月累计）同口径的低频版。数值越高，资金越向少数热门股抱团，微观交易结构越拥挤。'],
+    ['警戒线','研究经验值 <b>45%</b>（日度口径）是一条被反复验证的拥挤警戒线：突破后往往对应市场顶部、风格切换或抱团瓦解（2007 / 2015 / 2018 / 2021 均曾触发）。常态中枢约 38%，低于 20% 为低迷无人问津。'],
+    ['怎么用','日度 >45% 且持续：历史调整概率大，控制仓位、警惕抱团瓦解；回落至 35% 以下：资金分散、机会更均衡。周/月线向上加速＝抱团强化（结构性主升），高位掉头＝抱团瓦解前兆。结合上方中证全指收盘走势，看抱团升温 / 退潮与指数顶底的对应关系。'],
+    ['数据口径','历史序列用「个股成交量×收盘价」估算成交额（误差≈1%，因 amount≈volume×100×close）；<b>最新交易日用腾讯实时快照真实成交额实测</b>，快照日期新于序列末日且已收盘时自动追加（日/周/月序列每日前进）。全市场口径=沪市A(600/688)+深市A(000/002/300/301)。顶部走势：<b>中证全指(000985) 官方收盘点位</b>（中证指数公司官网接口，2005 年至今，非近似指数）。'],
+  ], `当前前5%成交额占比 <b class="${rCls}">${fmt(c.ratio,2)}%</b>：` + (c.ratio>=45?'已突破 <b>45% 拥挤警戒线</b> —— 微观交易结构拥挤，历史多对应顶部/风格切换，注意仓位与抱团瓦解风险。':c.ratio>=38?'处于偏热区间，资金开始向主线集中，提高警惕。':'尚处正常活跃区间，资金分布较分散。'));
+
+  const DZ=[{type:'inside',start:0,end:100},{type:'slider',height:16,bottom:6,start:0,end:100}];
+
+  // ① 顶部：中证全指(000985) 收盘走势（折线，与其余指标框同风格）
+  if(!showKL){
+    if($('m13c')) $('m13c').innerHTML = '<div class="sub" style="padding:14px 0;color:#8b95a3">走势数据暂缺（中证全指(000985) 官方行情缓存不可用，已降级为仅展示集中度比值）</div>';
+  } else {
+  chart($('m13c'), baseOpt({
+    grid:{left:58,right:22,top:16,bottom:46},
+    legend:{show:false},
+    xAxis:xAxis(m.dates),
+    yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},
+      axisLabel:{fontSize:11,color:'#8b95a3'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+    dataZoom:DZ,
+    series:[line(c.idx_label||'中证全指(000985)', closes, C.up)]
+  }));
+  }
+
+  // ② 底部：集中度比值（橙线 + 45% 警戒线）
+  chart($('m13c2'), baseOpt({
+    grid:{left:58,right:22,top:16,bottom:46},
+    legend:{show:false},
+    xAxis:xAxis(m.dates),
+    yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},
+      axisLabel:{fontSize:11,color:'#8b95a3',formatter:'{value}%'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+    dataZoom:DZ,
+    tooltip:{trigger:'axis', confine:false, position:ttPos, padding:[3,6],
+      extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;',
+      textStyle:{fontSize:10,lineHeight:14},
+      axisPointer:{type:'cross', lineStyle:{color:'#cbd5e1'}},
+      formatter:function(ps){
+        if(!ps||!ps.length) return '';
+        const v=ps[0].value;
+        const cls=v>=45?'#d13a34':(v>=38?'#ea8b1f':'#0f9960');
+        return '<b>'+ps[0].axisValue+'</b><br/>前5%成交额占比：<b style="color:'+cls+'">'+fmt(v,2)+'%</b>'
+          +(v>=45?'　⚠ 拥挤警戒':'');
+      }},
+    series:[ line('前5%成交额占比', m.ratio, C.org,
+      {markLine:markLine({y:45,color:C.up,label:'45% 拥挤警戒线'})}) ]
+  }));
+
+  // ③ 周度 / ④ 月度集中度（低频窗口累计，独立面板）
+  const wk=m.weekly, mo=m.monthly;
+  function freqPanel(subId, chartId, prefix, obj, color){
+    if(obj && obj.dates && obj.dates.length>2 && obj.ratio && obj.ratio.length===obj.dates.length){
+      const lastV = obj.ratio[obj.ratio.length-1];
+      if($(subId)) $(subId).innerHTML = prefix.replace('（','（最新 <b>'+fmt(lastV,2)+'%</b> · ');
+      chart($(chartId), baseOpt({
+        grid:{left:58,right:22,top:16,bottom:46}, legend:{show:false},
+        xAxis:xAxis(obj.dates),
+        yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},
+          axisLabel:{fontSize:11,color:'#8b95a3',formatter:'{value}%'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:DZ,
+        tooltip:{trigger:'axis', confine:false, position:ttPos, padding:[3,6],
+          extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;',
+          textStyle:{fontSize:10,lineHeight:14},
+          axisPointer:{type:'cross', lineStyle:{color:'#cbd5e1'}},
+          formatter:function(ps){
+            if(!ps||!ps.length) return '';
+            const v=ps[0].value;
+            const cls=v>=45?'#d13a34':(v>=38?'#ea8b1f':'#0f9960');
+            return '<b>'+ps[0].axisValue+'</b><br/>'+prefix+' 前5%成交额占比：<b style="color:'+cls+'">'+fmt(v,2)+'%</b>';}},
+        series:[ line(prefix+'·前5%占比', obj.ratio, color) ]
+      }));
+    } else if($(chartId)){
+      $(chartId).innerHTML = '<div class="sub" style="padding:14px 0;color:#8b95a3">'+prefix.replace('③','③').replace('④','④')+'数据构建中，下一次收盘后自动补齐…</div>';
+    }
+  }
+  freqPanel('m13sub3','m13c3','③ 周度集中度', wk, C.pur);
+  freqPanel('m13sub4','m13c4','④ 月度集中度', mo, C.blue);
+
+  _linkCharts('m13c','m13c2');
+}
+
+// ---- 说明表 ----
+function rNote(){
+  const n=D.notes||[];
+  $('noteBody').innerHTML = '<table><thead><tr><th style="width:52px">模块</th><th style="width:280px">替代/假设</th><th>影响说明</th></tr></thead><tbody>'
+    + n.map(x=>`<tr><td><b>${x.m}</b></td><td>${x.t}</td><td style="color:#5b6472">${x.d}</td></tr>`).join('')
+    + '</tbody></table>';
+}
+
+// ---- 导航高亮 ----
+function navSpy(){
+  const links=[...document.querySelectorAll('#nav a')];
+  const secs=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{
+    const y=window.scrollY+120; let cur=0;
+    secs.forEach((s,i)=>{ if(s.offsetTop<=y) cur=i; });
+    links.forEach((a,i)=>a.classList.toggle('on', i===cur));
+  },{passive:true});
+}
+
+// ---- go ----
+function safe(label, fn){ try{ fn(); }catch(e){ console.error('渲染失败 ['+label+']:', e); } }
+function renderAll(){
+if(!D.updated){
+  document.querySelector('#sum').innerHTML = '<div class="err">未加载到数据（data.js）。请先运行 <code>python fetch_data.py</code> 生成数据。</div>';
+}else{
+  safe('summary', buildSummary);
+  if(has('m1','m1k',['m1c'])) safe('m1', rM1);
+  if(has('m1b','m1bk',['m1bc'])) safe('m1b', rM1b);
+  if(has('m2','m2k',['m2c'])) safe('m2', rM2);
+  if(has('m3','m3k',['m3c'])) safe('m3', rM3);
+  if(has('m3b','m3bk',['m3bc','m3bc2'])) safe('m3b', rM3b);
+  if(has('m4','m4k',['m4c'])) safe('m4', rM4);
+  if(has('m5','m5k',['m5c'])) safe('m5', rM5);
+  if(has('m5b','m5bk',['m5bc'])) safe('m5b', rM5b);
+  if(has('m6a','m6k',['m6a1','m6a2','m6a3'])) safe('m6a', ()=>rPrism('m6a',['m6a1','m6a2','m6a3'],'m6k','①'));
+  // 复制两组三棱镜容器
+  ['m6b','m6c'].forEach((k,i)=>{
+    const wrapId = k+'Wrap';
+    const w=$(wrapId);
+    // m6b 额外加一张「两条指数走势叠加」图（m6b4）
+    const trendDiv = (k === 'm6b') ? `<div class="chart" id="${k}4" style="height:380px;margin-top:14px"></div>` : '';
+    w.innerHTML = `<div id="${k}k"></div>
+      <div class="charts3">
+        <div class="chart" id="${k}1"></div><div class="chart" id="${k}2"></div><div class="chart" id="${k}3"></div>
+      </div>
+      ${trendDiv}
+      <div id="${k}h"></div>`;
+  });
+  if(has('m6b','m6bk',['m6b1','m6b2','m6b3'])) safe('m6b', ()=>rPrism('m6b',['m6b1','m6b2','m6b3'],'m6bk','②'));
+  if(has('m6c','m6ck',['m6c1','m6c2','m6c3'])) safe('m6c', ()=>rPrism('m6c',['m6c1','m6c2','m6c3'],'m6ck','③'));
+  if(has('m7','m7k',['m7a1','m7a2','m7a3'])) safe('m7', ()=>rPrism('m7',['m7a1','m7a2','m7a3'],'m7k'));
+  if(has('m8','m8k',['m8c'])) safe('m8', rM8);
+  if(has('m9','m9k',['m9c'])) safe('m9', rM9);
+  if(has('m10','m10k',['m10c'])) safe('m10', rM10);
+  if(has('m10b','m10bk',['m10bc'])) safe('m10b', rM10b);
+  if(has('m11','m11k',['m11c'])) safe('m11', rM11);
+  if(has('m12','m12k',['m12c','m12c2','m12c3'])) safe('m12', rM12);
+  if(has('m13','m13k',['m13c','m13c2'])) safe('m13', rM13);
+  safe('note', rNote); safe('nav', navSpy);
+
+  // 关键：页面/容器布局稳定后再整体 resize 一次，确保曲线在预览与 iframe 中可见
+  function resizeAll(){ charts.forEach(c=>{ try{c.resize();}catch(e){} }); }
+  if(document.readyState==='complete'){ requestAnimationFrame(resizeAll); }
+  else { window.addEventListener('load', ()=>requestAnimationFrame(resizeAll)); }
+  setTimeout(resizeAll, 400);
+}
+} // end renderAll
+
+// ---- 网页自动更新：优先拉取服务端最新 data.json，定时重渲染 ----
+function disposeAll(){
+  if(typeof charts !== 'undefined' && charts){
+    charts.forEach(function(c){ try{ c.dispose(); }catch(e){} });
+    charts.length = 0;
+  }
+}
+function setUpdatedMeta(ts){
+  var el = document.getElementById('updMeta');
+  if(el && ts) el.innerHTML = ts;
+}
+async function refreshData(){
+  try{
+    // 先探测轻量的 /api/updated：数据版本未变则不下载完整 data.json
+    var metaRes = await fetch('/api/updated?_=' + Date.now(), {cache:'no-store'});
+    if(metaRes.ok){
+      var meta = await metaRes.json();
+      if(meta && meta.updated && D.updated === meta.updated) return;
+    }
+    var res = await fetch('/data.json?_=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) return;
+    var nd = await res.json();
+    if(nd && nd.updated){
+      D = nd;
+      disposeAll();
+      renderAll();
+      setUpdatedMeta(nd.updated);
+    }
+  }catch(e){
+    console.error('自动刷新数据失败，沿用当前数据：', e);
+  }
+}
+// 首次：先用内联离线兜底数据渲染（双击本地文件也能看）
+renderAll();
+// 再异步拉取服务端最新数据，并每 5 分钟自动刷新一次
+refreshData();
+setInterval(refreshData, 5*60*1000);
+</script>
+</body>
+</html>
