@@ -26,15 +26,13 @@ jobs:
       - name: 安装依赖
         run: pip install requests numpy pandas akshare
 
+      # 缓存作为加速层（cache miss 时靠 git checkout 的缓存文件兜底）
       - name: 恢复缓存
         uses: actions/cache@v4
         id: cache
         with:
           path: cache
           key: etf-cache-v2
-          restore-keys: |
-            etf-cache-v2
-            etf-cache-v1-
 
       - name: 保证 cache 目录存在
         run: mkdir -p cache
@@ -42,16 +40,19 @@ jobs:
       - name: 抓取数据
         id: fetch
         run: |
-          # 冷启动保护：缓存为空时走全量回填，日常增量走 --quick
-          CSV_COUNT=$(find cache -maxdepth 1 -name "csi*.csv" | wc -l)
-          if [ "$CSV_COUNT" -lt 5 ]; then
-            echo "=== 冷启动模式（缓存不足，全量回填） ==="
-            echo "cache 顶层 csi*.csv 数量: $CSV_COUNT"
+          # 检查缓存是否充足（git checkout 自带完整缓存，actions/cache 作为加速）
+          CSI_COUNT=$(find cache -maxdepth 1 -name "csi*.csv" 2>/dev/null | wc -l)
+          echo "cache 中 csi*.csv 数量: $CSI_COUNT"
+
+          if [ "$CSI_COUNT" -ge 15 ]; then
+            echo "=== 日常增量模式 ==="
+            python fetch_data.py --quick
+          elif [ "$CSI_COUNT" -ge 3 ]; then
+            echo "=== 准冷启动（缓存部分可用，全量但有断点续跑） ==="
             python fetch_data.py
           else
-            echo "=== 日常增量模式 ==="
-            echo "cache 顶层 csi*.csv 数量: $CSV_COUNT"
-            python fetch_data.py --quick
+            echo "=== 完整冷启动（缓存不足，全量回填） ==="
+            python fetch_data.py
           fi
         timeout-minutes: 15
 
