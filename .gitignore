@@ -16,3 +16,10 @@ _publish_anchor/
 _syn*.js
 *.csv
 !.gitignore
+# 缓存文件进 git，作为 actions/cache 的永久备份
+!cache/csi*.csv
+!cache/cni*.csv
+!cache/tx*.csv
+!cache/zzqz985.csv
+!cache/sw*.csv
+!cache/fund*.csv

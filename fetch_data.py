@@ -44,7 +44,7 @@ M1_DISPLAY_FROM = "2004-12-31"
 # M1b 原文口径版：同样用五年均线（自 2004-12 起有值），但把价格窗口再往前拨到
 # 2004 年初，让用户看到 2004-05 年的行情背景（早期只有万得全A价格线，均线/抄底线待热身）。
 M1B_DISPLAY_FROM = "2004-01-01"
-SLEEP = 2.6          # 中证官网请求间隔(秒)，避免 WAF 限流
+SLEEP = 3.5          # 中证官网请求间隔(秒)，避免 WAF 限流（GH Actions 跑冷启动时 2.6s 仍会触发）
 BACKFILL_FROM = 2005
 CHUNK_YEARS = 6      # 单次请求跨度（中证官网实测支持 6 年）
 
@@ -159,6 +159,7 @@ def csi_sess(force=False):
 
 
 CSI_BLOCKED = [False, 0]     # [是否已判定本次运行被封, 连续403次数]
+CSI_BLOCKED_THRESHOLD = 5   # 连续 403 次数阈值（放宽，避免过早放弃）
 
 
 def csindex_api(code, start, end, tries=3):
@@ -173,7 +174,7 @@ def csindex_api(code, start, end, tries=3):
                       params={"indexCode": code, "startDate": start, "endDate": end}, timeout=45)
             if r.status_code == 403:
                 CSI_BLOCKED[1] += 1
-                if CSI_BLOCKED[1] >= 3:
+                if CSI_BLOCKED[1] >= CSI_BLOCKED_THRESHOLD:
                     CSI_BLOCKED[0] = True
                     log("    中证官网本轮已限流，本轮跳过中证源（后续自动重试）")
                     return pd.DataFrame(columns=["date", "close"])

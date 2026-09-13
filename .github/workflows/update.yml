@@ -31,8 +31,9 @@ jobs:
         id: cache
         with:
           path: cache
-          key: etf-cache-v1-${{ github.run_date }}
+          key: etf-cache-v2
           restore-keys: |
+            etf-cache-v2
             etf-cache-v1-
 
       - name: 保证 cache 目录存在
