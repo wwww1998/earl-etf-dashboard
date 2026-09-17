@@ -165,7 +165,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
 .how .tip b{color:#1f2328}
 .how .cau{color:#92400e;font-size:12px}
 </style>
-<!-- 自包含单文件，打包于 2026-09-17 12:00 -->
+<!-- 自包含单文件，打包于 2026-09-17 12:23 -->
 </head>
 <body>
 
@@ -176,6 +176,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
     <div class="meta">
       <span class="pill">数据更新 <b id="m-upd">—</b></span>
       <span class="pill">数据截止 <b id="m-latest">—</b></span>
+      <span class="pill">自动更新 <b id="m-auto">检查中…</b></span>
       <span class="pill">数据源 <b>中证指数官网 / 腾讯行情 / AkShare</b></span>
       <span class="pill">更新频率 <b>每交易日 18:30</b></span>
     </div>
@@ -1809,7 +1810,13 @@ if(!D.updated){
 }
 } // end renderAll
 
-// ---- 网页自动更新：优先拉取服务端最新 data.json，定时重渲染 ----
+// ---- 网页自动更新 ----
+// 逻辑：能拉到更新的 data.json 就就地重渲染（自动更新）；
+//       拉不到 / 版本未变就保留当前数据（显示最近可得交易日，不留空白）。
+function autoState(txt, color){
+  var el = document.getElementById('m-auto');
+  if(el){ el.textContent = txt; el.style.color = color || ''; }
+}
 function disposeAll(){
   if(typeof charts !== 'undefined' && charts){
     charts.forEach(function(c){ try{ c.dispose(); }catch(e){} });
@@ -1824,32 +1831,55 @@ function setUpdatedMeta(ts){
   stampAsOf();
 }
 async function refreshData(){
+  var stamp = '?_=' + Date.now();
   try{
-    // 先探测轻量的 /api/updated：数据版本未变则不下载完整 data.json
-    var metaRes = await fetch('/api/updated?_=' + Date.now(), {cache:'no-store'});
-    if(metaRes.ok){
-      var meta = await metaRes.json();
-      if(meta && meta.updated && D.updated === meta.updated) return;
+    // 1) 轻量版本探测：本地 server.py 提供 /api/updated；静态托管下 404，忽略即可
+    try{
+      var metaRes = await fetch('/api/updated' + stamp, {cache:'no-store'});
+      if(metaRes.ok){
+        var meta = await metaRes.json();
+        if(meta && meta.updated && D.updated === meta.updated){
+          autoState('已是最新', '#10713a'); return;
+        }
+      }
+    }catch(e){ /* 静态托管无此接口，继续走 data.json */ }
+
+    // 2) 取同目录 data.json（GitHub Pages / 本地 server / 任意静态托管都适用）
+    var nd = null, lastErr = null;
+    var cands = ['data.json'];
+    for(var i=0;i<cands.length;i++){
+      try{
+        var res = await fetch(cands[i] + stamp, {cache:'no-store'});
+        if(!res.ok){ lastErr = 'HTTP ' + res.status; continue; }
+        var tmp = await res.json();
+        if(tmp && tmp.updated){ nd = tmp; break; }
+      }catch(e){ lastErr = e.message || String(e); }
     }
-    var res = await fetch('/data.json?_=' + Date.now(), {cache:'no-store'});
-    if(!res.ok) return;
-    var nd = await res.json();
-    if(nd && nd.updated && nd.updated !== D.updated){
-      D = nd;
-      M = D.modules || {};
-      disposeAll();
-      renderAll();
-      setUpdatedMeta(nd.updated);
+
+    if(!nd){
+      // 拿不到数据源（离线打开 / 静态托管未放 data.json）→ 保留当前数据，显式说明
+      autoState('离线 · 显示最近可得数据', '#92400e');
+      return;
     }
+    if(nd.updated === D.updated){ autoState('已是最新', '#10713a'); return; }
+
+    // 3) 版本变了 → 就地重渲染（不刷新整页）
+    D = nd;
+    M = D.modules || {};
+    disposeAll();
+    renderAll();
+    setUpdatedMeta(nd.updated);
+    autoState('已更新', '#10713a');
   }catch(e){
+    autoState('自动检查失败 · 显示最近可得数据', '#92400e');
     console.error('自动刷新数据失败，沿用当前数据：', e);
   }
 }
 // 首次：先用内联离线兜底数据渲染（双击本地文件也能看）
 renderAll();
-// 再异步拉取服务端最新数据，并每 5 分钟自动刷新一次
+// 再异步拉取最新 data.json：拉到就自动更新，拉不到就用内联数据（显示最近可得交易日）
 refreshData();
-setInterval(refreshData, 5*60*1000);
+setInterval(refreshData, 10*60*1000);
 </script>
 </body>
 </html>
