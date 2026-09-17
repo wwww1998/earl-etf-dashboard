@@ -165,7 +165,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
 .how .tip b{color:#1f2328}
 .how .cau{color:#92400e;font-size:12px}
 </style>
-<!-- 自包含单文件，打包于 2026-09-17 12:36 -->
+<!-- 自包含单文件，打包于 2026-09-17 12:41 -->
 </head>
 <body>
 
@@ -1839,7 +1839,7 @@ async function refreshData(){
       if(metaRes.ok){
         var meta = await metaRes.json();
         if(meta && meta.updated && D.updated === meta.updated){
-          autoState('已自动更新 · 数据截至 ' + (latestOf() || '—'), '#10713a'); return;
+          autoState('已是最新 · ' + (latestOf() || '—'), '#6ee7a8'); return;
         }
       }
     }catch(e){ /* 静态托管无此接口，继续走 data.json */ }
@@ -1858,12 +1858,12 @@ async function refreshData(){
 
     if(!nd){
       // 拿不到数据源（离线打开 / 静态托管未放 data.json）→ 保留当前数据，显式说明
-      autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#92400e');
+      autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#fcd34d');
       noteStaleFallback('读不到 data.json' + (lastErr ? '，' + lastErr : ''));
       return;
     }
     if(nd.updated === D.updated){
-      autoState('已是最新 · 数据截至 ' + (latestOf() || '—'), '#10713a');
+      autoState('已是最新 · ' + (latestOf() || '—'), '#6ee7a8');
       return;
     }
 
@@ -1873,9 +1873,9 @@ async function refreshData(){
     disposeAll();
     renderAll();
     setUpdatedMeta(nd.updated);
-    autoState('已自动更新 · 数据截至 ' + (latestOf() || '—'), '#10713a');
+    autoState('已自动更新 · ' + (latestOf() || '—'), '#6ee7a8');
   }catch(e){
-    autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#92400e');
+    autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#fcd34d');
     noteStaleFallback(e.message || String(e));
     console.error('自动刷新数据失败，沿用当前数据：', e);
   }
