@@ -165,7 +165,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
 .how .tip b{color:#1f2328}
 .how .cau{color:#92400e;font-size:12px}
 </style>
-<!-- 自包含单文件，打包于 2026-09-17 15:33 -->
+<!-- 自包含单文件，打包于 2026-09-17 15:58 -->
 </head>
 <body>
 
@@ -1830,12 +1830,26 @@ function setUpdatedMeta(ts){
   if(u && ts) u.textContent = ts;
   stampAsOf();
 }
+// 带超时的 fetch：GitHub Pages 等跨境 CDN 可能长期只回几十 KB/s，
+// 不加超时会让 #m-auto 永远停在「检查中…」。超时即视为「无法自动更新」，
+// 走下方的兜底分支，显示当前已有数据（绝不空白）。
+function fetchTO(url, ms, opts){
+  var o = opts || {};
+  if(typeof AbortController === 'undefined') return fetch(url, o);
+  var ctl = new AbortController();
+  var timer = setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, ms);
+  o.signal = ctl.signal;
+  return fetch(url, o).then(
+    function(r){ clearTimeout(timer); return r; },
+    function(e){ clearTimeout(timer); throw e; }
+  );
+}
 async function refreshData(){
   var stamp = '?_=' + Date.now();
   try{
     // 1) 轻量版本探测：本地 server.py 提供 /api/updated；静态托管下 404，忽略即可
     try{
-      var metaRes = await fetch('/api/updated' + stamp, {cache:'no-store'});
+      var metaRes = await fetchTO('/api/updated' + stamp, 8000, {cache:'no-store'});
       if(metaRes.ok){
         var meta = await metaRes.json();
         if(meta && meta.updated && D.updated === meta.updated){
@@ -1845,15 +1859,24 @@ async function refreshData(){
     }catch(e){ /* 静态托管无此接口，继续走 data.json */ }
 
     // 2) 取同目录 data.json（GitHub Pages / 本地 server / 任意静态托管都适用）
+    //    先走「允许 HTTP 缓存」的普通请求：Pages 会回 304/命中本地缓存，
+    //    避免每次轮询都重下 2MB（跨境带宽实测仅 10~20KB/s）。
+    //    失败或超时再退回带版本号的强刷请求。
     var nd = null, lastErr = null;
-    var cands = ['data.json'];
-    for(var i=0;i<cands.length;i++){
+    var tries = [
+      {url:'data.json',          ms:45000, cache:'default'},
+      {url:'data.json' + stamp,  ms:60000, cache:'no-store'}
+    ];
+    for(var i=0;i<tries.length;i++){
       try{
-        var res = await fetch(cands[i] + stamp, {cache:'no-store'});
+        var res = await fetchTO(tries[i].url, tries[i].ms, {cache:tries[i].cache});
         if(!res.ok){ lastErr = 'HTTP ' + res.status; continue; }
         var tmp = await res.json();
         if(tmp && tmp.updated){ nd = tmp; break; }
-      }catch(e){ lastErr = e.message || String(e); }
+        lastErr = '返回内容不含 updated 字段';
+      }catch(e){
+        lastErr = (e && e.name === 'AbortError') ? ('响应超时 ' + Math.round(tries[i].ms/1000) + 's') : (e.message || String(e));
+      }
     }
 
     if(!nd){
