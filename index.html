@@ -165,7 +165,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
 .how .tip b{color:#1f2328}
 .how .cau{color:#92400e;font-size:12px}
 </style>
-<!-- 自包含单文件，打包于 2026-09-17 12:32 -->
+<!-- 自包含单文件，打包于 2026-09-17 12:36 -->
 </head>
 <body>
 
@@ -1839,7 +1839,7 @@ async function refreshData(){
       if(metaRes.ok){
         var meta = await metaRes.json();
         if(meta && meta.updated && D.updated === meta.updated){
-          autoState('已是最新', '#10713a'); return;
+          autoState('已自动更新 · 数据截至 ' + (latestOf() || '—'), '#10713a'); return;
         }
       }
     }catch(e){ /* 静态托管无此接口，继续走 data.json */ }
@@ -1858,10 +1858,14 @@ async function refreshData(){
 
     if(!nd){
       // 拿不到数据源（离线打开 / 静态托管未放 data.json）→ 保留当前数据，显式说明
-      autoState('离线 · 显示最近可得数据', '#92400e');
+      autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#92400e');
+      noteStaleFallback('读不到 data.json' + (lastErr ? '，' + lastErr : ''));
       return;
     }
-    if(nd.updated === D.updated){ autoState('已是最新', '#10713a'); return; }
+    if(nd.updated === D.updated){
+      autoState('已是最新 · 数据截至 ' + (latestOf() || '—'), '#10713a');
+      return;
+    }
 
     // 3) 版本变了 → 就地重渲染（不刷新整页）
     D = nd;
@@ -1869,11 +1873,23 @@ async function refreshData(){
     disposeAll();
     renderAll();
     setUpdatedMeta(nd.updated);
-    autoState('已更新', '#10713a');
+    autoState('已自动更新 · 数据截至 ' + (latestOf() || '—'), '#10713a');
   }catch(e){
-    autoState('自动检查失败 · 显示最近可得数据', '#92400e');
+    autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#92400e');
+    noteStaleFallback(e.message || String(e));
     console.error('自动刷新数据失败，沿用当前数据：', e);
   }
+}
+// 自动更新未成功时，把「当前显示的是哪一天的数据」明确写在页头，避免看成空白 / 漏更新
+function noteStaleFallback(reason){
+  try{
+    var box = $('m-stale'); if(!box) return;
+    var base = '<b>自动更新未成功（' + reason + '）。</b>页面显示的是最近一次成功抓取的数据，' +
+      '数据截止 <b>' + (latestOf() || '—') + '</b>；各卡片标题旁标注了该指标自身的截止日。' +
+      '数据源恢复后会自动更新，无需手动刷新。';
+    if(box.style.display === 'none' || !box.innerHTML){ box.style.display = 'block'; box.innerHTML = base; }
+    else if(box.innerHTML.indexOf('自动更新未成功') < 0){ box.innerHTML = base + '<br>' + box.innerHTML; }
+  }catch(e){}
 }
 // 首次：先用内联离线兜底数据渲染（双击本地文件也能看）
 renderAll();
