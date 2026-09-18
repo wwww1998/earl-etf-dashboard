@@ -41,6 +41,19 @@ def main():
         fh.write(out)
     print(f"已生成自包含 index.html  {os.path.getsize(p('index.html'))//1024} KB  ({stamp})")
 
+    # version.txt：几十字节的版本探针。
+    # 线上页面先拉它做比对，版本一致就完全不必再下 data.json
+    # （跨境链路实测 data.json 需 25~107s；本地/局域网则是毫秒级）。内容 = data.json 的 updated。
+    try:
+        import json
+        with open(p("data.json"), encoding="utf-8") as fh:
+            ver = str((json.load(fh) or {}).get("updated") or stamp)
+        with open(p("version.txt"), "w", encoding="utf-8") as fh:
+            fh.write(ver)
+        print(f"已写 version.txt  {ver}")
+    except Exception as e:
+        print("version.txt 写入失败：", e)
+
 
 if __name__ == "__main__":
     main()

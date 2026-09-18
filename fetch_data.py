@@ -159,11 +159,52 @@ def csi_sess(force=False):
 
 
 CSI_BLOCKED = [False, 0]     # [是否已判定本次运行被封, 连续403次数]
-CSI_BLOCKED_THRESHOLD = 5   # 连续 403 次数阈值（放宽，避免过早放弃）
+# 中证官网 403 是 IP 级临时限流：同一秒的另一个指数请求照样 403，逐个重试纯属浪费。
+# 实测（2026-09-17）连续 4 次 403 各退避 50s = 白等 205s，占整轮 439s 的 47%。
+# ⇒ 阈值降到 2（只给一次短期重试机会），并把限流状态落盘做冷却，避免同一小时内多轮重复撞墙。
+CSI_BLOCKED_THRESHOLD = 2
+CSI_WAF_SLEEP = 15           # 403 后的重试退避秒数（原 50s）
+CSI_WAF_COOLDOWN_MIN = float(os.environ.get("CSI_WAF_COOLDOWN_MIN", "12"))
+CSI_WAF_FLAG = os.path.join(CACHE, "_csi_waf_cooldown.txt")
+
+
+def _csi_waf_active():
+    """上轮被限流后的冷却期内 → 本轮不再发任何中证请求。"""
+    if CSI_WAF_COOLDOWN_MIN <= 0:
+        return False
+    try:
+        if os.path.exists(CSI_WAF_FLAG):
+            until = float((open(CSI_WAF_FLAG, encoding="utf-8").read() or "0").strip())
+            return time.time() < until
+    except Exception:
+        pass
+    return False
+
+
+def _csi_waf_trip():
+    """落盘限流冷却（跨进程有效）。"""
+    try:
+        os.makedirs(CACHE, exist_ok=True)
+        with open(CSI_WAF_FLAG, "w", encoding="utf-8") as fh:
+            fh.write(str(time.time() + CSI_WAF_COOLDOWN_MIN * 60))
+    except Exception:
+        pass
+
+
+def _csi_waf_clear():
+    try:
+        if os.path.exists(CSI_WAF_FLAG):
+            os.remove(CSI_WAF_FLAG)
+    except Exception:
+        pass
 
 
 def csindex_api(code, start, end, tries=3):
     if CSI_BLOCKED[0]:
+        return pd.DataFrame(columns=["date", "close"])
+    if _csi_waf_active():
+        CSI_BLOCKED[0] = True
+        log(f"    中证官网限流冷却期内（{CSI_WAF_COOLDOWN_MIN:.0f} min），本轮跳过中证源（不消耗请求）")
         return pd.DataFrame(columns=["date", "close"])
     s = csi_sess()
     for i in range(tries):
@@ -176,13 +217,15 @@ def csindex_api(code, start, end, tries=3):
                 CSI_BLOCKED[1] += 1
                 if CSI_BLOCKED[1] >= CSI_BLOCKED_THRESHOLD:
                     CSI_BLOCKED[0] = True
-                    log("    中证官网本轮已限流，本轮跳过中证源（后续自动重试）")
+                    _csi_waf_trip()
+                    log(f"    中证官网限流（连续 {CSI_BLOCKED[1]} 次 403）→ 跳过中证源，冷却 {CSI_WAF_COOLDOWN_MIN:.0f} min")
                     return pd.DataFrame(columns=["date", "close"])
-                log(f"    {code} {start}~{end} WAF(403)，退避 50s")
-                time.sleep(50)
+                log(f"    {code} {start}~{end} WAF(403)，退避 {CSI_WAF_SLEEP}s 后重试 1 次")
+                time.sleep(CSI_WAF_SLEEP)
                 csi_sess(force=True)
                 continue
             CSI_BLOCKED[1] = 0
+            _csi_waf_clear()
             if r.status_code != 200:
                 time.sleep(6)
                 continue
@@ -815,7 +858,18 @@ def _tc_roll_maintain(snap, amt, codes):
     except Exception:
         pass
     # 2) tc_raw 明细 append 当日（与历史回补文件同构，保持全史至最新）
-    #    幂等：末行已是同一交易日则跳过，避免同日重复运行造成重复计数。
+    #    幂等与提速（2026-09-17 同盘基准：单文件 append 仅 0.5ms，全市场约 3s）：
+    #      ① 标记文件记录「已写入的交易日」——同日重跑直接整体跳过，5552 个文件零 I/O（省 ~12s 扫描）；
+    #      ② 逐文件再查末 256 字节兜底（防标记丢失或上一轮半途失败）。
+    #    注：不要改成线程池——实测 24 线程反而 0.77x（小文件 I/O 已是瓶颈外的开销）。
+    mark = os.path.join(CACHE, "tc_raw_last.txt")
+    try:
+        if os.path.exists(mark) and (open(mark, encoding="utf-8").read() or "").strip() == snap:
+            return
+    except Exception:
+        pass
+    todo = 0
+    ok = 0
     for code, a in amt.items():
         try:
             p = os.path.join(RAW, code + ".csv")
@@ -826,8 +880,17 @@ def _tc_roll_maintain(snap, amt, codes):
                 tail = fh.read().decode("utf-8", "ignore")
             if f"{snap}," in tail:
                 continue
+            todo += 1
             with open(p, "a", encoding="utf-8") as fh:
                 fh.write(f"{snap},{a * _TC_UNIT:.6g}\n")
+            ok += 1
+        except Exception:
+            continue
+    # 失败率 >5% 时不落标记，留给下一轮重试
+    if ok >= todo * 0.95:
+        try:
+            with open(mark, "w", encoding="utf-8") as fh:
+                fh.write(snap)
         except Exception:
             pass
 
@@ -1434,7 +1497,9 @@ def main(deep=True):
                           if f.endswith(".csv")] if os.path.isdir(RAW) else []
                 _tc_last = str(_tcdf["date"].max())
                 if _codes:
+                    _t0 = time.time()
                     _amt = _tencent_amounts(_codes)
+                    _t1 = time.time()
                     if _amt:
                         _tot = sum(_amt.values())
                         _arr = sorted(_amt.values(), reverse=True)
@@ -1464,10 +1529,14 @@ def main(deep=True):
                                     _tc_roll_maintain(_snap, _amt, _codes)
                                 except Exception:
                                     pass
+                        log("  M13 明细：腾讯快照 %.1fs（%d 只）+ 缓冲/明细维护 %.1fs"
+                            % (_t1 - _t0, len(_amt), time.time() - _t1))
                 _ratio_map = {d: float(x) for d, x in zip(_tcdf["date"], _tcdf["ratio"])}
 
                 # 顶部K线：中证全指(000985) 官方OHLC（csindex 缓存 + 每日增量刷新，非近似）
+                _t2 = time.time()
                 _oh = _csi_000985_ohlc()
+                log("  M13 顶部OHLC(000985)刷新 %.1fs" % (time.time() - _t2))
                 _oh_label = "中证全指(000985)"
                 if not _oh:
                     log("  M13 交易集中度 警告：中证全指(000985) OHLC 缓存不可用，K线暂缺（仅出比值）")
@@ -1579,6 +1648,48 @@ def main(deep=True):
         {"k": "Wind 万得", "v": "881001.WI 万得全A、885003.WI 偏债混合、885001.WI 偏股混合、885006.WI 混合债券型一级"
              "（官方 API 拉取全历史；手动低频执行，不纳入每日刷新）", "s": "ok"},
     ]
+
+    # ---- 模块兜底：本轮未算出的模块，沿用上一份 data.json 的既有结果 ----
+    # 目的：任何一轮抓取/计算失败都不允许让某个图卡整块消失（用户要求「不要没更新就不显示」）。
+    # 上一轮结果即使略滞后，也比空白或占位文案有用；滞后情况会在日志里显式列出。
+    _prev_path = os.path.join(BASE, "data.json")
+    if os.path.exists(_prev_path):
+        try:
+            with open(_prev_path, "r", encoding="utf-8") as _f:
+                _prev = json.load(_f)
+            _pm = (_prev or {}).get("modules") or {}
+            _carried = [_k for _k in _pm if _k not in M]
+            for _k in _carried:
+                M[_k] = _pm[_k]
+            if _carried:
+                out["carried"] = sorted(_carried)
+                log("   模块兜底：沿用上一轮结果的模块 -> " + ", ".join(sorted(_carried)))
+        except Exception as _e:
+            log(f"   模块兜底：读取上一轮 data.json 失败（忽略）：{_e}")
+
+    # ---- 数据截止日（asof）：供前端在「当日数据未更新」时显式标注「截至前一交易日」 ----
+    # 用户要求：当日数据未更新时显示前一交易日的，不要出现空白/占位文案。
+    # 前端据 asof 与 latest 的差异，在落后的卡片标题旁打「截至 MM-DD」标签；
+    # 卡片本身照常用最近可得数据渲染，绝不因为当日缺失而清空。
+    _asof = {}
+    for _k, _v in M.items():
+        _d = ""
+        if isinstance(_v, dict):
+            _c = _v.get("cur") or {}
+            _d = str(_c.get("date") or "")
+            if not _d:
+                _dd = (_v.get("data") or {}).get("dates") or []
+                if _dd:
+                    _d = str(_dd[-1])
+        _asof[_k] = _d
+    out["asof"] = _asof
+    _vals = sorted(v for v in _asof.values() if v)
+    out["latest"] = _vals[-1] if _vals else ""
+    _stale = {k: v for k, v in _asof.items() if v and out["latest"] and v < out["latest"]}
+    out["stale"] = _stale
+    if _stale:
+        log("   数据截止：全站最新 " + out["latest"] + "；滞后卡片（沿用最近可得数据）-> "
+            + ", ".join(f"{k}={v}" for k, v in sorted(_stale.items(), key=lambda x: x[1])))
 
     raw = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
     _atomic_write(os.path.join(BASE, "data.json"), raw)

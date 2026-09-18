@@ -126,9 +126,12 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
     <div class="sub">源自张翼轸《EarlETF 图表周刊 2026-08-30》· 共 <b>13</b> 个指标（含 4 个补充口径，合计 17 张图）· 数据每日自动更新</div>
     <div class="meta">
       <span class="pill">数据更新 <b id="m-upd">—</b></span>
+      <span class="pill">数据截止 <b id="m-latest">—</b></span>
+      <span class="pill">自动更新 <b id="m-auto">检查中…</b></span>
       <span class="pill">数据源 <b>中证指数官网 / 腾讯行情 / AkShare</b></span>
       <span class="pill">更新频率 <b>每交易日 18:30</b></span>
     </div>
+    <div id="m-stale" style="display:none;margin-top:9px;font-size:12.5px;line-height:1.7;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 11px"></div>
   </div>
 </header>
 
@@ -678,20 +681,87 @@ function mpArrows(buys, sells, dates){
 }
 
 // ---------------- 主渲染 ----------------
-const D = window.DATA || {};
-const M = D.modules || {};
+// 注意：必须用 let —— refreshData() 会在自动刷新时整体替换 D/M（此前写成 const，
+// 赋值抛 TypeError 被 catch 静默吞掉，导致服务端数据更新后页面永远不刷新）。
+let D = window.DATA || {};
+let M = D.modules || {};
 $('m-upd').textContent = D.updated || '—';
 
-// 模块缺失时给出占位，而不是留白
+// ---------------- 数据截止日：当日缺失时显示前一交易日，不留空白 ----------------
+// fetch_data.py 输出 asof:{模块→数据截止日}、latest:全站最新交易日。
+// 卡片一律用「最近可得数据」渲染；仅当某卡截止日落后于 latest 时，在标题旁打「截至 MM-DD」标签，
+// 并在页头给出汇总提示——这样用户看到的是前一交易日的真实数据，而不是空白或占位文案。
+const CARD_MODS = {
+  m1:['m1'], m1b:['m1b'], m2:['m2'], m3:['m3'], m3b:['m3b'], m4:['m4'],
+  m5:['m5'], m5b:['m5b'], m6:['m6a','m6b','m6c'], m7:['m7'], m8:['m8'],
+  m9:['m9'], m10:['m10'], m10b:['m10b'], m11:['m11'], m12:['m12'], m13:['m13']
+};
+function asofOf(k){
+  const a = D.asof || {};
+  if(a[k]) return a[k];
+  const v = M[k] || {}, c = v.cur || {};
+  return c.date || (((v.data||{}).dates)||[]).slice(-1)[0] || '';
+}
+function latestOf(){
+  if(D.latest) return D.latest;
+  const ds = Object.keys(M).map(asofOf).filter(Boolean).sort();
+  return ds.length ? ds[ds.length-1] : '';
+}
+// 宽限 4 个自然日：盘中/次日上午跑时，绝大多数卡片「截止到上一交易日」属正常，
+// 不给黄标；只有明显落后（源站限流、Wind 低频缓存未刷）才提示。
+const ASOF_GRACE_DAYS = 4;
+function gapDays(a, b){
+  const t1 = Date.parse(a + 'T00:00:00'), t2 = Date.parse(b + 'T00:00:00');
+  if(isNaN(t1) || isNaN(t2)) return 0;
+  return Math.round((t2 - t1) / 86400000);
+}
+function stampAsOf(){
+  try{
+    const latest = latestOf();
+    if($('m-latest')) $('m-latest').textContent = latest || '—';
+    const stale = [];
+    Object.keys(CARD_MODS).forEach(card=>{
+      const cardEl = document.getElementById(card); if(!cardEl) return;
+      const h2 = cardEl.querySelector('h2'); if(!h2) return;
+      const old = h2.querySelector('.asof'); if(old) old.remove();
+      const ds = CARD_MODS[card].map(asofOf).filter(Boolean);
+      if(!ds.length) return;
+      const d = ds.slice().sort()[0];             // 卡内最旧截止日，取最保守
+      if(!latest || d >= latest) return;          // 已到最新交易日，不加标签
+      if(gapDays(d, latest) < ASOF_GRACE_DAYS) return;   // 仅落后 1~3 天视为正常交易日差
+      const el = document.createElement('span');
+      el.className = 'asof';
+      el.title = '该指标依赖的指数当日数据尚未发布或源站限流，此处显示的是最近可得数据（截至 ' + d + '）';
+      el.style.cssText = 'font-size:11.5px;font-weight:600;color:#92400e;background:#fffbeb;'+
+        'border:1px solid #fde68a;border-radius:999px;padding:2px 8px;white-space:nowrap';
+      el.textContent = '截至 ' + d;
+      h2.appendChild(el);
+      stale.push([card, d]);
+    });
+    const box = $('m-stale');
+    if(box){
+      if(stale.length){
+        box.style.display = 'block';
+        box.innerHTML = '<b>以下卡片显示的是最近可得交易日数据（不是当日，但已完整渲染、不会留空白）：</b>' +
+          stale.map(x=>'<a href="#'+x[0]+'" style="color:#92400e;font-weight:600">'+
+            x[0].toUpperCase()+' 截至 '+x[1]+'</a>').join('、') +
+          '。原因多为该指数当日数据尚未发布、源站（中证官网）限流，或 Wind 低频缓存未刷新。';
+      } else {
+        box.style.display = 'none'; box.innerHTML = '';
+      }
+    }
+  }catch(e){ console.error('数据截止日标注失败:', e); }
+}
+
+// 模块缺失时的安静占位（正常情况不会出现：fetch_data.py 会沿用上一轮已算出的模块结果）
 function missing(key, kpiId, chartIds){
   if(kpiId && $(kpiId)) $(kpiId).innerHTML =
-    '<div class="kpi" style="grid-column:1/-1;background:#fffbeb;border-color:#fde68a">'+
+    '<div class="kpi" style="grid-column:1/-1;background:#f8fafc;border-color:#e8edf3">'+
     '<div class="l">数据状态</div>'+
-    '<div class="v" style="font-size:14px;color:#92400e">数据补充中</div>'+
-    '<div class="s">该指标依赖的指数历史正在后台回补，每日自动更新后会补齐</div></div>';
+    '<div class="v" style="font-size:16px;color:#8b95a3">—</div></div>';
   (chartIds||[]).forEach(id=>{ const el=$(id); if(el){ el.style.height='110px'; el.style.display='flex';
     el.style.alignItems='center'; el.style.justifyContent='center';
-    el.innerHTML='<div style="color:#8b95a3;font-size:13px">数据补充中 · 每日自动更新后会补齐</div>'; }});
+    el.innerHTML='<div style="color:#b6bec9;font-size:13px">—</div>'; }});
 }
 function has(k, kpiId, chartIds){
   if(M[k]) return true;
@@ -764,18 +834,9 @@ function buildSummary(){
       r>=45?'拥挤/警戒':(r>=38?'偏热':'中性'), r>=45?'hot':(r>=38?'mid':'mid'),
       '突破45%历史多对应顶部/风格切换/抱团瓦解'); }
 
-  const pend = [
-    ['m3','3 · 韭圈儿神奇指标'],['m4','4 · 偏股基金3年滚动年化'],['m5','5 · 偏股基金 vs 债基'],
-    ['m6b','6② · 轮动三棱镜 · 1000成长创新/1000价值稳健'],
-    ['m8','8 · 中证红利股息率'],['m11','11 · 红利AH 40日收益差'],
-  ].filter(x=>!M[x[0]]);
   let html = '<table><thead><tr><th>指标</th><th>当前值</th><th>读数</th><th>备注</th></tr></thead><tbody>'
     + rows.map(r=>`<tr><td>${r.name}</td><td><b>${r.val}</b></td>
         <td>${sig(r.level,r.signal)}</td><td style="color:#5b6472">${r.note}</td></tr>`).join('');
-  if(pend.length){
-    html += `<tr><td colspan="4" style="color:#92400e;background:#fffbeb">`+
-      `<b>数据补充中：</b>${pend.map(x=>x[1]).join('、')} —— 依赖的指数历史正在后台回补，每日自动更新后会补齐。</td></tr>`;
-  }
   $('sumBody').innerHTML = html + '</tbody></table>';
 }
 
@@ -997,6 +1058,7 @@ function rM3b(){
   const n = dev.length-1;
   const devNow = dev[n];
   if(devNow==null) return;
+  const devMin = Math.min.apply(null, dev.filter(v=>v!=null));   // 历史最低（≈底部区）
   const gF = c.eq-100, gB = c.dm-100;
   const pp = pctile(dev, devNow);
   const dCls = devNow<0?'down':(devNow>60?'up':'neu');
@@ -1008,11 +1070,11 @@ function rM3b(){
     ['与 3（指数口径）之差', gap==null?'—':fmt(gap,1)+' pct', 'org', '同一思路、不同口径'],
   ]);
   how('m3bh','使用方法 · 韭圈儿指标（基金净值口径）',[
-    ['看什么','<b>主图</b>：红线＝<b>易方达沪深300(110020) 累计净值</b>涨幅，橙线＝万得偏债混合基金指数(885003.WI)涨幅，均从 <b>2009-08-26</b> 起归一化到 100。<b>下图「偏离率」</b>＝红线相对橙线的偏离，参考线 <b>0%＝极度悲观</b>。'],
-    ['怎么用','<b>偏离度 → 0 或跌破 0</b>：买沪深300基金还不如买偏债混合，情绪冰点，历史对应底部区。<span class="cau">注意：本口径历史区间仅 −39.24% ~ +5.33%，3 里那条「+60%＝顶部」阈值在本栏从未触及，不适用。</span>'],
+    ['看什么','<b>主图</b>：红线＝<b>易方达沪深300(110020) 累计净值</b>涨幅，橙线＝万得偏债混合基金指数(885003.WI)涨幅，均从 <b>2009-08-26</b> 起归一化到 100。<b>下图「偏离率」</b>＝红线相对橙线的偏离。<span class="cau">本口径 2009 年起算、恰好错过 2005-2007 大牛市，之后沪深300 结构性跑输偏债混合，偏离度常年为负：<b>0% 只是 2009 起点（两者累计相等）参考线、反而是本口径历史最高水位附近（2015 最高 +5.33%）</b>，而非底部；真正的底部在 <b>历史最低 ≈ −39%（2024）</b>。</span>'],
+    ['怎么用','<b>判读看历史分位、不看固定 0%</b>：本口径偏离度范围约 <b>−39% ~ +5%</b>，0% 为 2009 起点（近顶部），所以「偏离度→0」不是底部信号、反而偏高位。<b>底部/极度悲观对应历史最低 ≈ −39%（2024）</b>；当前 −18.82% 处于 <b>64.9% 分位</b>（约 65% 的时间比现在更悲观），属<b>偏冷但未极端</b>。与 3 不同，这里不要套用「0%=见底」。'],
     ['与 3 的区别','3 用<b>沪深300全收益指数(H00300)</b>（含分红再投、零费用）；本栏用<b>扣费后的真实基金净值</b>。同区间实测：H00300 +109.48% vs 110020 +88.74%，17 年累计拖累 −9.90%（年化 −0.61%）。偏债腿同为 885003，两口径校验仅差 0.55pct。'],
   ], `当前：易方达沪深300累计 <b>${pct(gF)}</b>，偏债混合累计 <b>${pct(gB)}</b>，偏离度 <b class="${dCls}">${pct(devNow)}</b>（历史分位 ${fmt(pp,0)}%）——`
-    + (devNow<0 ? '已<b>跑输</b>偏债混合，属偏冷区间；但分位 64.9% 说明历史上约 65% 的时间比现在更悲观，<b>尚未到极端底部</b>。'
+    + (devNow<0 ? '已<b>跑输</b>偏债混合，属偏冷区间；但历史分位 ${fmt(pp,0)}% 说明约 ${fmt(pp,0)}% 的时间比现在更悲观，<b>尚未到极端底部</b>（本口径底部在 ≈ −39%）。'
       : devNow>60 ? '偏离度已越过 +60% 高危线，提示顶部风险（本口径历史从未触及，若出现需警惕数据异常）。'
       : '偏离度为正但不高，属中性区间。')
     + ' <span class="cau">与 3（指数口径）相差约 53 个百分点，请固定一个口径看趋势，不要混用。</span>');
@@ -1024,7 +1086,7 @@ function rM3b(){
    {dataZoom:[{type:'inside'},{type:'slider',height:16,bottom:6}],
     legend:{top:2,itemWidth:14,itemHeight:8,textStyle:{fontSize:11,color:'#5b6472'},data:['易方达沪深300(110020)','偏债混合型基金指数(885003.WI)']}});
 
-  // 偏离率走势图：0%＝极度悲观（本口径历史区间 −39.24% ~ +5.33%，不画 +60% 线）
+  // 偏离率走势图：0% 为本口径 2009 起点参考（近顶部，非底部）；底部在 devMin≈−39%
   chart($('m3bc2'), baseOpt(Object.assign({
     dataZoom:[{type:'inside',start:0,end:100},{type:'slider',height:16,bottom:6}],
     grid:{left:52,right:20,top:22,bottom:52},
@@ -1035,7 +1097,8 @@ function rM3b(){
     series:[
       line('偏离率(%)', dev, '#1d4ed8', {lineStyle:{width:2,color:'#1d4ed8'},
         itemStyle:{color:'#1d4ed8'}, areaStyle:{color:'rgba(29,78,216,.07)'}}),
-      line('', null, '#059669', {markLine:markLine({y:0,color:'#059669',label:'0%＝极度悲观'})})
+      line('', null, '#059669', {markLine:markLine({y:0,color:'#059669',label:'0%(2009起点)'})}),
+      line('', null, '#dc2626', {markLine:markLine({y:devMin,color:'#dc2626',label:'历史底部≈'+fmt(devMin,0)+'%'})})
     ]
   })));
   _linkCharts('m3bc', 'm3bc2');
@@ -1611,8 +1674,9 @@ function rM13(){
             if(!ps||!ps.length) return '';
             const v=ps[0].value;
             const cls=v>=45?'#d13a34':(v>=38?'#ea8b1f':'#0f9960');
-            return '<b>'+ps[0].axisValue+'</b><br/>'+prefix+' 前5%成交额占比：<b style="color:'+cls+'">'+fmt(v,2)+'%</b>';}},
-        series:[ line(prefix+'·前5%占比', obj.ratio, color) ]
+            return '<b>'+ps[0].axisValue+'</b><br/>'+prefix+' 前5%成交额占比：<b style="color:'+cls+'">'+fmt(v,2)+'%</b>'+(v>=45?'　⚠ 拥挤警戒':'');}},
+        series:[ line(prefix+'·前5%占比', obj.ratio, color,
+          {markLine:markLine({y:45,color:C.up,label:'45% 拥挤警戒线'})}) ]
       }));
     } else if($(chartId)){
       $(chartId).innerHTML = '<div class="sub" style="padding:14px 0;color:#8b95a3">'+prefix.replace('③','③').replace('④','④')+'数据构建中，下一次收盘后自动补齐…</div>';
@@ -1682,7 +1746,7 @@ if(!D.updated){
   if(has('m11','m11k',['m11c'])) safe('m11', rM11);
   if(has('m12','m12k',['m12c','m12c2','m12c3'])) safe('m12', rM12);
   if(has('m13','m13k',['m13c','m13c2'])) safe('m13', rM13);
-  safe('note', rNote); safe('nav', navSpy);
+  safe('note', rNote); safe('nav', navSpy); safe('asof', stampAsOf);
 
   // 关键：页面/容器布局稳定后再整体 resize 一次，确保曲线在预览与 iframe 中可见
   function resizeAll(){ charts.forEach(c=>{ try{c.resize();}catch(e){} }); }
@@ -1692,7 +1756,13 @@ if(!D.updated){
 }
 } // end renderAll
 
-// ---- 网页自动更新：优先拉取服务端最新 data.json，定时重渲染 ----
+// ---- 网页自动更新 ----
+// 逻辑：能拉到更新的 data.json 就就地重渲染（自动更新）；
+//       拉不到 / 版本未变就保留当前数据（显示最近可得交易日，不留空白）。
+function autoState(txt, color){
+  var el = document.getElementById('m-auto');
+  if(el){ el.textContent = txt; el.style.color = color || ''; }
+}
 function disposeAll(){
   if(typeof charts !== 'undefined' && charts){
     charts.forEach(function(c){ try{ c.dispose(); }catch(e){} });
@@ -1702,33 +1772,114 @@ function disposeAll(){
 function setUpdatedMeta(ts){
   var el = document.getElementById('updMeta');
   if(el && ts) el.innerHTML = ts;
+  var u = document.getElementById('m-upd');
+  if(u && ts) u.textContent = ts;
+  stampAsOf();
+}
+// 带超时的 fetch：GitHub Pages 等跨境 CDN 可能长期只回几十 KB/s，
+// 不加超时会让 #m-auto 永远停在「检查中…」。超时即视为「无法自动更新」，
+// 走下方的兜底分支，显示当前已有数据（绝不空白）。
+function fetchTO(url, ms, opts){
+  var o = opts || {};
+  if(typeof AbortController === 'undefined') return fetch(url, o);
+  var ctl = new AbortController();
+  var timer = setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, ms);
+  o.signal = ctl.signal;
+  return fetch(url, o).then(
+    function(r){ clearTimeout(timer); return r; },
+    function(e){ clearTimeout(timer); throw e; }
+  );
 }
 async function refreshData(){
+  var stamp = '?_=' + Date.now();
   try{
-    // 先探测轻量的 /api/updated：数据版本未变则不下载完整 data.json
-    var metaRes = await fetch('/api/updated?_=' + Date.now(), {cache:'no-store'});
-    if(metaRes.ok){
-      var meta = await metaRes.json();
-      if(meta && meta.updated && D.updated === meta.updated) return;
+    // 0) 极轻量版本探针（几十字节的 version.txt，build.py 与 data.json 同步生成）：
+    //    版本与本页内联数据一致就什么都不用下；不一致才去拉 data.json。
+    //    跨境链路下 data.json 要 25~107s，这一步把它彻底省掉。
+    var remoteVer = null;
+    try{
+      var vr = await fetchTO('version.txt' + stamp, 10000, {cache:'no-store'});
+      if(vr.ok){
+        var vt = (await vr.text()).trim();
+        if(vt) remoteVer = vt;
+      }
+    }catch(e){ /* 没有 version.txt（旧部署 / file://）→ 走下面的完整探测 */ }
+    if(remoteVer && D.updated && remoteVer === D.updated){
+      autoState('已是最新 · ' + (latestOf() || '—'), '#6ee7a8'); return;
     }
-    var res = await fetch('/data.json?_=' + Date.now(), {cache:'no-store'});
-    if(!res.ok) return;
-    var nd = await res.json();
-    if(nd && nd.updated){
-      D = nd;
-      disposeAll();
-      renderAll();
-      setUpdatedMeta(nd.updated);
+
+    // 1) 轻量版本探测：本地 server.py 提供 /api/updated；静态托管下 404，忽略即可
+    try{
+      var metaRes = await fetchTO('/api/updated' + stamp, 8000, {cache:'no-store'});
+      if(metaRes.ok){
+        var meta = await metaRes.json();
+        if(meta && meta.updated && D.updated === meta.updated){
+          autoState('已是最新 · ' + (latestOf() || '—'), '#6ee7a8'); return;
+        }
+      }
+    }catch(e){ /* 静态托管无此接口，继续走 data.json */ }
+
+    // 2) 取同目录 data.json（GitHub Pages / 本地 server / 任意静态托管都适用）
+    //    先走「允许 HTTP 缓存」的普通请求：Pages 会回 304/命中本地缓存，
+    //    避免每次轮询都重下 2MB（跨境带宽实测仅 10~20KB/s）。
+    //    失败或超时再退回带版本号的强刷请求。
+    var nd = null, lastErr = null;
+    var tries = [
+      {url:'data.json',          ms:45000, cache:'default'},
+      {url:'data.json' + stamp,  ms:60000, cache:'no-store'}
+    ];
+    for(var i=0;i<tries.length;i++){
+      try{
+        var res = await fetchTO(tries[i].url, tries[i].ms, {cache:tries[i].cache});
+        if(!res.ok){ lastErr = 'HTTP ' + res.status; continue; }
+        var tmp = await res.json();
+        if(tmp && tmp.updated){ nd = tmp; break; }
+        lastErr = '返回内容不含 updated 字段';
+      }catch(e){
+        lastErr = (e && e.name === 'AbortError') ? ('响应超时 ' + Math.round(tries[i].ms/1000) + 's') : (e.message || String(e));
+      }
     }
+
+    if(!nd){
+      // 拿不到数据源（离线打开 / 静态托管未放 data.json）→ 保留当前数据，显式说明
+      autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#fcd34d');
+      noteStaleFallback('读不到 data.json' + (lastErr ? '，' + lastErr : ''));
+      return;
+    }
+    if(nd.updated === D.updated){
+      autoState('已是最新 · ' + (latestOf() || '—'), '#6ee7a8');
+      return;
+    }
+
+    // 3) 版本变了 → 就地重渲染（不刷新整页）
+    D = nd;
+    M = D.modules || {};
+    disposeAll();
+    renderAll();
+    setUpdatedMeta(nd.updated);
+    autoState('已自动更新 · ' + (latestOf() || '—'), '#6ee7a8');
   }catch(e){
+    autoState('无法自动更新 · 显示 ' + (latestOf() || '最近可得') + ' 数据', '#fcd34d');
+    noteStaleFallback(e.message || String(e));
     console.error('自动刷新数据失败，沿用当前数据：', e);
   }
 }
+// 自动更新未成功时，把「当前显示的是哪一天的数据」明确写在页头，避免看成空白 / 漏更新
+function noteStaleFallback(reason){
+  try{
+    var box = $('m-stale'); if(!box) return;
+    var base = '<b>自动更新未成功（' + reason + '）。</b>页面显示的是最近一次成功抓取的数据，' +
+      '数据截止 <b>' + (latestOf() || '—') + '</b>；各卡片标题旁标注了该指标自身的截止日。' +
+      '数据源恢复后会自动更新，无需手动刷新。';
+    if(box.style.display === 'none' || !box.innerHTML){ box.style.display = 'block'; box.innerHTML = base; }
+    else if(box.innerHTML.indexOf('自动更新未成功') < 0){ box.innerHTML = base + '<br>' + box.innerHTML; }
+  }catch(e){}
+}
 // 首次：先用内联离线兜底数据渲染（双击本地文件也能看）
 renderAll();
-// 再异步拉取服务端最新数据，并每 5 分钟自动刷新一次
+// 再异步拉取最新 data.json：拉到就自动更新，拉不到就用内联数据（显示最近可得交易日）
 refreshData();
-setInterval(refreshData, 5*60*1000);
+setInterval(refreshData, 10*60*1000);
 </script>
 </body>
 </html>

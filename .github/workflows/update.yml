@@ -1,10 +1,17 @@
 name: 每日自动更新看板
 
 on:
-  schedule:
-    # 北京时间 18:30 = UTC 10:30
-    - cron: '30 10 * * *'
-  workflow_dispatch:   # 手动触发
+  # ⛔ 2026-09-18 停用云端定时任务。
+  # 原因（已实证）：云端 runner 无本机 cache/ 与 Wind 数据，抓取不完整；更关键的是它
+  # checkout 的是仓库里的 template.html，用「旧模板」重建 index.html 后 commit 覆盖
+  # 本机 18:30 推出的完整版本，导致页面出现「数据补充中」空白卡；又因它不推送
+  # version.txt，前端版本探针读到旧版本号 → 误判「已是最新」→ 问题被锁死。
+  # 实测：本机 09-17 18:32 推 0d9fea0fb521，云端 09-17 23:14 推 b4554a6e58ac 覆盖之。
+  # 每日更新已由本机 Windows 计划任务 EarlETF_Dashboard_Update（周一~五 18:30，
+  # 跑 etfchart\auto_update.py）负责。需要临时云端更新时用下面的「手动触发」。
+  # schedule:
+  #   - cron: '30 10 * * *'
+  workflow_dispatch:   # 手动触发（保留）
 
 permissions:
   contents: write
@@ -63,7 +70,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html data.json data.js cache/
+          git add index.html data.json data.js version.txt cache/
           if git diff --staged --quiet; then
             echo "内容未变化，跳过提交。"
           else
