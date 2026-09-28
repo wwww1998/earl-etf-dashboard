@@ -37,6 +37,20 @@ TODAY = dt.date.today()
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
+
+def today_bar_final():
+    """当日那根日线是否已"收盘定稿"（15:00 及以后才算）。
+
+    盘中（<15:00）腾讯等实时源的日K是**未完成的行情**，绝不能写进历史缓存：
+    - 尤其 tc_000985_ohlc.csv 一旦写入"今天"的日期，`_need = rows[-1] < today`
+      将永远为 False，当天晚上再也不会去中证官网取真实收盘价 → 永久污染 M13 顶图。
+    - 其余 tx*.csv 虽靠 merge(keep="last") 当晚自愈，但盘中会把半小时价当作"收盘价"
+      展示，且与仍停在前一交易日的中证源序列口径不一致。
+    与 M13 成交额快照的 >=15:00 判定保持同一口径。
+    """
+    _n = dt.datetime.now()
+    return (_n.hour * 60 + _n.minute) >= 15 * 60
+
 DISPLAY_FROM = "2008-01-01"   # 图表展示起点（计算仍用全历史）
 # M1「五年之锚」用万得全A(1999 起)，五年均线自 2004-12 起有值 → 单独把展示窗口提前，
 # 让 10 年偏离度百分位曲线（自 2006-01 起）完整可见。
@@ -334,8 +348,12 @@ def tx_kline(code, n=2000):
             rows = node
         if not rows:
             return None
-        return pd.DataFrame([(str(x[0]).replace("-", ""), float(x[2])) for x in rows],
-                            columns=["date", "close"])
+        df = pd.DataFrame([(str(x[0]).replace("-", ""), float(x[2])) for x in rows],
+                          columns=["date", "close"])
+        if not today_bar_final():
+            # 盘中：腾讯会返回"今天"这根未完成K线 → 剔除，只保留已收盘的历史
+            df = df[df["date"] != TODAY.strftime("%Y%m%d")]
+        return df
     except Exception:
         return None
 
@@ -957,9 +975,12 @@ def _csi_000985_ohlc():
             node = ((r.json() or {}).get("data") or {}).get("sh000985")
             kk = (node.get("qfqday") or node.get("day")) if isinstance(node, dict) else None
             _all = {d: (o, c, l, h) for d, o, c, l, h in rows}
+            _today_s = dt.date.today().isoformat()
             for x in kk or []:
                 if len(x) < 5:
                     continue
+                if x[0] == _today_s and not today_bar_final():
+                    continue   # 盘中：腾讯这根是未完成K线，不写缓存
                 _all[str(x[0])] = (float(x[1]), float(x[2]), float(x[4]), float(x[3]))
             _new = sorted((d,) + v for d, v in _all.items())
             if _new != rows:
