@@ -172,7 +172,8 @@ def csi_sess(force=False):
     return _csi
 
 
-CSI_BLOCKED = [False, 0]     # [是否已判定本次运行被封, 连续403次数]
+# [是否已判定本次运行被封, 连续403的“不同代码”数, 上一个触发 403 的代码]
+CSI_BLOCKED = [False, 0, None]
 # 中证官网 403 是 IP 级临时限流：同一秒的另一个指数请求照样 403，逐个重试纯属浪费。
 # 实测（2026-09-17）连续 4 次 403 各退避 50s = 白等 205s，占整轮 439s 的 47%。
 # ⇒ 阈值降到 2（只给一次短期重试机会），并把限流状态落盘做冷却，避免同一小时内多轮重复撞墙。
@@ -228,7 +229,14 @@ def csindex_api(code, start, end, tries=3):
             r = s.get("https://www.csindex.com.cn/csindex-home/perf/index-perf",
                       params={"indexCode": code, "startDate": start, "endDate": end}, timeout=45)
             if r.status_code == 403:
-                CSI_BLOCKED[1] += 1
+                # 同一代码的多次重试只计 1 次。实测（2026-09-28 10:43 与 11:09 两轮）
+                # 931591CNY01 单独 403 两次就把全局熔断打开，连带把排在它后面的
+                # 931588CNY01(m6b)/931589/930903(m9) 全部跳过、只能沿用旧缓存；
+                # 而紧挨着它前面的 931589CNY01/931586CNY01 刚刚都 200 ⇒ 并非 IP 级封禁。
+                # 真正的 IP 级封禁会在换代码后立刻再次 403，仍会按阈值熔断，防护不减弱。
+                if code != CSI_BLOCKED[2]:
+                    CSI_BLOCKED[2] = code
+                    CSI_BLOCKED[1] += 1
                 if CSI_BLOCKED[1] >= CSI_BLOCKED_THRESHOLD:
                     CSI_BLOCKED[0] = True
                     _csi_waf_trip()
@@ -239,6 +247,7 @@ def csindex_api(code, start, end, tries=3):
                 csi_sess(force=True)
                 continue
             CSI_BLOCKED[1] = 0
+            CSI_BLOCKED[2] = None
             _csi_waf_clear()
             if r.status_code != 200:
                 time.sleep(6)
