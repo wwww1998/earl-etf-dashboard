@@ -1629,6 +1629,60 @@ def main(deep=True):
         except Exception as e:
             log(f"  M13 交易集中度 失败: {e}")
 
+    # ---------- M14 融资盘担保比例（227% 强平线） ----------
+    # 口径：全市场平均维持担保比例 = 担保物总价值 ÷ 融资融券负债，中证金融「融资融券账户统计」
+    #   官方日频，2012-09-27 起。数据由 _danbao_fetch.py 尾刷进 cache/danbao.csv
+    #   （本脚本只读缓存、零 Wind 请求，与 M1/M3/M5 的 Wind 缓存同一套路）。
+    # 227%：市场反复引用的「集体强平线」。跌破后融资盘从慢性失血转入被动去杠杆，
+    #   历史上与指数阶段底部高度同步（2013-06、2015-07/08、2016-01、2018-10、2024-02）。
+    # 2015-04-29~2015-08-03 官方确实未披露（68 个交易日），flag=估算 的那段是建模重建
+    #   （担保物价值 ÷ 负债 × 插值 k 系数），前端据此画橙色虚线 —— 必须与真实观测区分。
+    try:
+        _p14 = os.path.join(CACHE, "danbao.csv")
+        if os.path.exists(_p14):
+            _d14 = pd.read_csv(_p14)
+            _d14["_dt"] = pd.to_datetime(_d14["date"].astype(str).str.replace("-", "", regex=False),
+                                         format="%Y%m%d", errors="coerce")
+            _d14 = (_d14.dropna(subset=["_dt"]).drop_duplicates(subset=["_dt"], keep="last")
+                    .sort_values("_dt"))
+            _s14 = _d14.set_index("_dt")["value"].astype(float)
+            _est14 = (_d14.set_index("_dt")["flag"].fillna("官方").astype(str) == "估算").astype(int)
+            _v14 = float(_s14.iloc[-1])
+
+            def _hit14(series, start=None, gap=10):
+                """<(227) 的破线天数与「轮数」。相邻破线段间隔 ≤gap 个交易日视为同一轮。"""
+                x = series if start is None else series[series.index >= pd.Timestamp(start)]
+                pos = np.flatnonzero((x < 227).values)
+                if not len(pos):
+                    return 0, 0, None
+                return int(len(pos)), 1 + int(np.sum(np.diff(pos) > gap)), \
+                    x.index[pos[-1]].strftime("%Y-%m-%d")
+
+            _n_all, _r_all, _l_all = _hit14(_s14)
+            _n15, _r15, _l15 = _hit14(_s14, "2015-01-01")
+            _x15 = _s14[_s14.index >= pd.Timestamp("2015-01-01")]
+            M["m14"] = {
+                "data": pack(_s14.index, _s14, _est14, nd=2),
+                "cur": {"date": _s14.index[-1].strftime("%Y-%m-%d"),
+                        "ratio": round(_v14, 2), "warn": 227.0, "warn2": 230.0,
+                        "gap227": round(_v14 - 227.0, 2),
+                        "pct": round(float((_x15 <= _v14).mean()) * 100, 1),
+                        "low": round(float(_s14.min()), 2),
+                        "lowd": _s14.idxmin().strftime("%Y-%m-%d"),
+                        "high": round(float(_s14.max()), 2),
+                        "highd": _s14.idxmax().strftime("%Y-%m-%d"),
+                        "below_days": _n_all, "below_rounds": _r_all,
+                        "below_days15": _n15, "below_rounds15": _r15,
+                        "last_below": _l15, "last_below_all": _l_all,
+                        "est_days": int(_est14.sum()), "n": int(len(_s14))}
+            }
+            SRC["m14"] = "中证金融「融资融券账户统计」官方日频（2012-09-27 起）；Wind EDB M0076000 尾刷"
+            log(f"  M14 融资盘担保比例 OK（{M['m14']['cur']['date']} {_v14:.2f}%，"
+                f"距227% {_v14 - 227:+.2f}pt；破线 全样本 {_n_all}天/{_r_all}轮、"
+                f"2015起 {_n15}天/{_r15}轮；估算段 {int(_est14.sum())} 天）")
+    except Exception as e:
+        log(f"  M14 融资盘担保比例 失败: {e}")
+
     # ---------- 降级说明 ----------
     fb = []
     for k, src in used.items():

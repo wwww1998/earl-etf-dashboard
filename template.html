@@ -142,7 +142,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
   <a href="#m5">5 顶部共振·债基</a><a href="#m5b">5b 顶部共振·易方达</a>
   <a href="#m6">6 规模风格轮动</a><a href="#m7">7 成长价值轮动</a><a href="#m8">8 红利股息率</a>
   <a href="#m9">9 红利40日收益差</a><a href="#m10">10 红利回归·价格</a><a href="#m10b">10b 红利回归·全收益</a>
-  <a href="#m11">11 红利AH收益差</a><a href="#m12">12 沪深300估值</a><a href="#m13">13 交易集中度</a>
+  <a href="#m11">11 红利AH收益差</a><a href="#m12">12 沪深300估值</a><a href="#m13">13 交易集中度</a><a href="#m14">14 融资盘担保比例</a>
   <a href="#note">口径说明</a>
 </div></nav>
 
@@ -518,6 +518,25 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:26px 0 0;border
   </div></details>
 </div>
 
+<!-- ============ M14 融资盘担保比例（227% 强平线） ============ -->
+<div class="card" id="m14">
+  <h2>14 · 融资盘担保比例（227% 强平线） <span class="tag">杠杆安全垫</span><span class="tag sub2">全市场平均维持担保比例</span></h2>
+  <div class="lead">全市场融资融券账户的「担保物市值 ÷ 融资融券负债」平均值，中证金融官方日频。市场把 <b>227%</b> 当作融资盘的<b>集体强平线</b>：一旦压到这一带，杠杆资金就从「慢性失血」转入「被动去杠杆」，而它历史上几乎总是与指数阶段底部同时出现（2013-06、2015-07/08、2016-01、2018-10、2024-02）。当前离 227% 还有多少个点，就是融资盘还剩多厚的安全垫。</div>
+  <div class="kpis" id="m14k"></div>
+  <div class="sub" id="m14sub">全市场平均维持担保比例（左轴 %）· <span style="color:#dc2626">红虚线＝227% 强平线</span> · <span style="color:#f59e0b">黄点线＝230% 观察上沿</span> · <span style="color:#ea8b1f">橙虚线＝官方未披露段的建模重建</span></div>
+  <div class="chart xlg" id="m14c"></div>
+  <div id="m14h"></div>
+  <details><summary>指标说明 · 口径 / 227% 的来历 / 破线历史 / 数据可得性</summary>
+  <div class="exp">
+    <div class="row"><div class="k">一句话</div><div class="t"><code>市场平均担保比例 = 全市场融资融券担保物总价值 ÷ 融资融券负债总额 × 100%</code>。它衡量融资盘整体还剩多少安全垫：越低说明杠杆资金浮亏越深、越接近被强制平仓。</div></div>
+    <div class="row"><div class="k">227% 的来历</div><div class="t">券商对单一账户的平仓线通常是维持担保比例 <b>130%~150%</b>，那是<b>单账户</b>口径。227% 是<b>全市场平均</b>层面的经验阈值：全市场平均值压到 227% 附近，意味着大量账户已滑到各自平仓线附近、被动去杠杆（强平）开始集中发生。这个数字<b>不是官方公布的标准</b>，而是市场研究反复引用的经验位，本卡沿用以保持口径可比。</div></div>
+    <div class="row"><div class="k">破线历史</div><div class="t">2024 年以前一共出现过 <b>5 次</b>真正的「急性破线」：<b>2013-06</b>（钱荒，最低 208.81%）、<b>2015-07/08</b>（股灾去杠杆）、<b>2016-01</b>（熔断）、<b>2018-10</b>（熊市底，最低 215.60%）、<b>2024-02</b>（流动性危机，最低 222.00%）。这 5 次都对应中证全指/沪深300 的阶段底部区域。</div></div>
+    <div class="row"><div class="k">为什么 227% 的含义在变严</div><div class="t">2013–2014 年担保比例常年贴着 220–230% 运行（两融标的仅 500~700 只、扩容期增量资金盖过存量出清），227% 当时只是「常态边缘」；2015 年后中枢抬到 260% 以上（标的扩到 3000+ 只、担保品放宽、券商风控趋严），<b>跌破 227% 才变成真正的急性警报</b>。所以评估当前值时，应当与 2015 年之后的分布比，而不是与全历史比。</div></div>
+    <div class="row"><div class="k">数据口径</div><div class="t">来源：<b>中证金融「融资融券账户统计」官方日频</b>（2012-09-27 起），日频更新由 <b>Wind EDB M0076000</b> 尾刷（两个源在日频上有 ±0.05 的微差，重叠区间一律沿用官方值，只把新增交易日追加进来）。<b>2015-04-29 → 2015-08-03 共 68 个交易日官方确实未披露</b>（这正是 Wind / iFinD / 东财全部同缺的原因，不是抓取失败），图中该段以<b>橙色虚线</b>呈现，用「担保物总价值 ÷ 融资融券负债」× 插值 k 系数重建，同期回测 MAE 1.2 点。</div></div>
+    <div class="row"><div class="k">怎么用</div><div class="t">① <b>距 227% 的点数＝安全垫厚度</b>：&gt;30 点为「慢性失血」区，跌破 10 点进入警戒，真正跌破 227% 后往往 1~2 个月内出现指数阶段底（此时是加仓窗口而非减仓窗口）；② 单日是「急性信号」、月频会把它完全抹平（2016-01-28、2018-10-11、2024-02-02 三次日频破线，当月月末值分别为 234.2% / 231.2% / 259.97%），所以必须看日频；③ 与 M13（交易集中度）同看：集中度高＋担保比例低＝抱团瓦解叠加去杠杆，杀伤力最大。</div></div>
+  </div></details>
+</div>
+
 <div class="card" id="note">
   <h2>口径与替代说明 <span class="tag warn">必读</span></h2>
   <div class="lead">原文的图表基于 Wind 数据，部分标的无免费公开数据源。下表逐条披露本页的替代口径与影响方向 —— 请务必在阅读结论前先看这里。</div>
@@ -694,7 +713,8 @@ $('m-upd').textContent = D.updated || '—';
 const CARD_MODS = {
   m1:['m1'], m1b:['m1b'], m2:['m2'], m3:['m3'], m3b:['m3b'], m4:['m4'],
   m5:['m5'], m5b:['m5b'], m6:['m6a','m6b','m6c'], m7:['m7'], m8:['m8'],
-  m9:['m9'], m10:['m10'], m10b:['m10b'], m11:['m11'], m12:['m12'], m13:['m13']
+  m9:['m9'], m10:['m10'], m10b:['m10b'], m11:['m11'], m12:['m12'], m13:['m13'],
+  m14:['m14']
 };
 function asofOf(k){
   const a = D.asof || {};
@@ -833,6 +853,11 @@ function buildSummary(){
     add('13 · 交易集中度(前5%占比)', fmt(r,2)+'%',
       r>=45?'拥挤/警戒':(r>=38?'偏热':'中性'), r>=45?'hot':(r>=38?'mid':'mid'),
       '突破45%历史多对应顶部/风格切换/抱团瓦解'); }
+  if(M.m14){ const c=M.m14.cur;
+    add('14 · 融资盘平均担保比例', fmt(c.ratio,2)+'%',
+      c.ratio<227?'⚠ 已跌破227%强平线':(c.gap227<10?'安全垫极薄/警戒':(c.gap227<20?'安全垫偏薄':'慢性失血区')),
+      c.ratio<227?'hot':(c.gap227<10?'hot':'mid'),
+      `距 227% ${c.gap227>0?'+':''}${fmt(c.gap227,1)}pt；2015 起破线 ${c.below_days15} 天/${c.below_rounds15} 轮，最近 ${c.last_below}`); }
 
   let html = '<table><thead><tr><th>指标</th><th>当前值</th><th>读数</th><th>备注</th></tr></thead><tbody>'
     + rows.map(r=>`<tr><td>${r.name}</td><td><b>${r.val}</b></td>
@@ -1688,6 +1713,82 @@ function rM13(){
   _linkCharts('m13c','m13c2');
 }
 
+// ---- M14 融资盘担保比例（227% 强平线） ----
+function rM14(){
+  const m=M.m14; if(!m) return; const c=m.cur;
+  const dat=m.data||{}, ds=dat.dates||[], cols=dat.cols||[];
+  const raw=cols[0]||[], estF=cols[1]||[];
+  // 拆成「官方观测」与「建模重建」两条线：重建段（2015-04-29→2015-08-03 共 68 日）画橙色虚线，
+  // 官方段在缺口处断开（connectNulls:false），视觉上首尾相接但不混淆真伪。
+  const vObs=raw.map((x,i)=> estF[i] ? null : x);
+  const vEst=raw.map((x,i)=> estF[i] ? x : null);
+  const w1=c.warn||227, w2=c.warn2||230;
+  const clsRisk = c.ratio<w1 ? 'up' : (c.gap227<10 ? 'org' : 'neu');
+
+  $('m14k').innerHTML = kpi([
+    ['市场平均担保比例', fmt(c.ratio,2)+'%', clsRisk, c.date],
+    ['距 227% 强平线', (c.gap227>0?'+':'')+fmt(c.gap227,2)+' pt',
+      c.gap227<0?'up':(c.gap227<10?'org':'neu'),
+      c.gap227>0?'融资盘整体安全垫厚度':'已跌破集体强平线'],
+    ['2015 年来分位', fmt(c.pct,0)+'%', c.pct<20?'up':(c.pct>80?'down':'neu'),
+      '在 2015 年至今序列中的位置'],
+    ['破线记录（2015 起）', c.below_days15+' 天 / '+c.below_rounds15+' 轮', 'neu',
+      '全样本 '+c.below_days+' 天 / '+c.below_rounds+' 轮；最近一次 '+c.last_below],
+  ]);
+
+  how('m14h','使用方法 · 融资盘担保比例（227% 强平线）',[
+    ['看什么','<b>红线＝全市场平均维持担保比例</b>；<b>红虚线 227%＝集体强平线</b>、<b>黄点线 230%＝观察上沿</b>。距离 227% 的点数就是融资盘整体还剩多厚的安全垫 —— 越低，杠杆资金浮亏越深、越接近被动平仓。'],
+    ['227% 是什么','券商对<b>单账户</b>的平仓线通常是维持担保比例 <b>130%~150%</b>；<b>227% 是全市场平均层面</b>的经验阈值 —— 平均值压到这里，意味着大量账户已滑到各自平仓线附近、强平开始集中发生。它<b>不是官方标准</b>，是市场研究反复引用的经验位。'],
+    ['怎么用','① <b>距 227% &gt;30 点</b>：慢性失血区，正常持仓；<b>跌破 10 点</b>：警戒，杠杆资金接近被动去杠杆；<b>真正跌破 227%</b>：历史上 1~2 个月内出现指数阶段底，是加仓窗口而非减仓窗口。② 单日是「急性信号」、月频会把它完全抹平（2016-01-28 / 2018-10-11 / 2024-02-02 三次日频破线，当月月末值分别为 234.2% / 231.2% / 259.97%），必须看日频。③ 与 M13 交易集中度同看：集中度高＋担保比例低＝抱团瓦解叠加去杠杆，杀伤力最大。'],
+    ['数据口径','中证金融「融资融券账户统计」官方日频（2012-09-27 起）；<b>橙色虚线</b>＝2015-04-29 → 2015-08-03 官方确未披露的 68 个交易日，按「担保物总价值 ÷ 融资融券负债」× 插值 k 系数重建（同期回测 MAE 1.2 点）。日频更新由 Wind EDB <code>M0076000</code> 尾刷，两源日频有 ±0.05 微差、重叠区沿用官方值。'],
+  ], `当前 <b class="${clsRisk}">${fmt(c.ratio,2)}%</b>（${c.date}），距 227% 强平线 `
+    + (c.gap227>0 ? `尚有 <b>${fmt(c.gap227,2)}</b> 个点：` : `已<b>跌破 ${fmt(-c.gap227,2)}</b> 个点：`)
+    + (c.ratio<w1 ? '<b>进入急性强平区</b> —— 历史上该区域几乎都是指数阶段底部，属加仓窗口而非减仓窗口。'
+      : c.gap227<10 ? '安全垫已很薄，<b>进入警戒</b>：杠杆资金接近被动去杠杆，留意指数加速下行。'
+      : c.gap227<20 ? '安全垫偏薄，处于「慢性失血」后段，需提高警惕。'
+      : '安全垫仍厚，属「慢性失血」而非「急性强平」区间，与顶部共振（M5）短期不构成共振风险。'));
+
+  chart($('m14c'), baseOpt({
+    grid:{left:58,right:22,top:22,bottom:46},
+    xAxis:xAxis(ds),
+    yAxis:{type:'value', min:200, scale:true, axisLine:{show:false}, axisTick:{show:false},
+      axisLabel:{fontSize:11,color:'#8b95a3',formatter:'{value}%'},
+      splitLine:{lineStyle:{color:'#f0f1f3'}}},
+    dataZoom:[{type:'inside',start:0,end:100},
+              {type:'slider',height:16,bottom:6,start:0,end:100}],
+    tooltip:{trigger:'axis', confine:false, position:ttPos, padding:[3,6],
+      extraCssText:'box-shadow:0 2px 8px rgba(0,0,0,.12);border-radius:4px;',
+      textStyle:{fontSize:10,lineHeight:14},
+      axisPointer:{type:'cross', lineStyle:{color:'#cbd5e1'}},
+      formatter:function(ps){
+        if(!ps||!ps.length) return '';
+        let v=null, est=false;
+        for(let i=0;i<ps.length;i++){
+          const x=ps[i].value;
+          if(x===null||x===undefined||isNaN(x)) continue;
+          if(ps[i].seriesName==='估算重建段'){ v=Number(x); est=true; }
+          else if(v===null){ v=Number(x); }
+        }
+        if(v===null) return '<b>'+ps[0].axisValue+'</b>';
+        const gap=v-w1;
+        const col = v<w1 ? '#d13a34' : (gap<10 ? '#c2410c' : '#1f2328');
+        return '<b>'+ps[0].axisValue+'</b><br/>平均担保比例：<b style="color:'+col+'">'+fmt(v,2)+'%</b>'
+          + (est?'<span style="color:#b45309">（建模重建）</span>':'')
+          + '<br/>距 227%：<b>'+(gap>0?'+':'')+fmt(gap,2)+'</b> 点';
+      }},
+    series:[
+      line('平均担保比例', vObs, C.up, {connectNulls:false,
+        markLine:{silent:true, symbol:'none', data:[
+          {yAxis:w1, lineStyle:{color:'#dc2626',type:'dashed',width:1.4},
+           label:{formatter:'227% 强平线',fontSize:10,color:'#dc2626',position:'insideEndTop'}},
+          {yAxis:w2, lineStyle:{color:'#f59e0b',type:'dotted',width:1.1},
+           label:{formatter:'230% 观察上沿',fontSize:10,color:'#f59e0b',position:'insideEndBottom'}}
+        ]}}),
+      line('估算重建段', vEst, C.org, {lineStyle:{width:1.6,type:'dashed',color:C.org}})
+    ]
+  }));
+}
+
 // ---- 说明表 ----
 function rNote(){
   const n=D.notes||[];
@@ -1746,6 +1847,7 @@ if(!D.updated){
   if(has('m11','m11k',['m11c'])) safe('m11', rM11);
   if(has('m12','m12k',['m12c','m12c2','m12c3'])) safe('m12', rM12);
   if(has('m13','m13k',['m13c','m13c2'])) safe('m13', rM13);
+  if(has('m14','m14k',['m14c'])) safe('m14', rM14);
   safe('note', rNote); safe('nav', navSpy); safe('asof', stampAsOf);
 
   // 关键：页面/容器布局稳定后再整体 resize 一次，确保曲线在预览与 iframe 中可见
