@@ -1778,6 +1778,15 @@ function rM14(){
       }},
     series:[
       line('平均担保比例', vObs, C.up, {connectNulls:false,
+        // 2015 年起每段破线的最低点打标：14 年跨度下 2024-02 只有 2 个破线日
+        // （225.90 / 222.00），不标出来视觉上只是一个很窄的凹口，容易被误判成
+        // 「图错了 / 数据没破线」。标记数据由后端 cur.marks 给出。
+        markPoint:{ symbol:'circle', symbolSize:7, silent:true,
+          itemStyle:{color:'#dc2626', borderColor:'#fff', borderWidth:1},
+          label:{show:true, position:'bottom', distance:4, fontSize:9, color:'#b91c1c',
+                 formatter:p=>{ const d=p.data.xv||''; return d.slice(2,7)+' '+p.data.value+'%'; }},
+          data:(c.marks||[]).map(x=>({name:x.date, xAxis:x.date, yAxis:x.value,
+                                     value:x.value, xv:x.date}))},
         markLine:{silent:true, symbol:'none', data:[
           {yAxis:w1, lineStyle:{color:'#dc2626',type:'dashed',width:1.4},
            label:{formatter:'227% 强平线',fontSize:10,color:'#dc2626',position:'insideEndTop'}},

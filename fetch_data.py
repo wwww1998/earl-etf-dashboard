@@ -1661,6 +1661,32 @@ def main(deep=True):
             _n_all, _r_all, _l_all = _hit14(_s14)
             _n15, _r15, _l15 = _hit14(_s14, "2015-01-01")
             _x15 = _s14[_s14.index >= pd.Timestamp("2015-01-01")]
+
+            def _marks14(series, start="2015-01-01", gap=10):
+                """2015 年起每一「破线段」的最低点，供前端 markPoint 标注。
+                14 年跨度下 2024-02 只有 2 个破线日（225.90 / 222.00），抽稀也好、
+                全量也好，视觉上都只是一个很窄的凹口，容易让人以为「没破过线」。
+                每段取最低点打一个标记，5 次破线一目了然。"""
+                x = series[series.index >= pd.Timestamp(start)]
+                pos = np.flatnonzero((x < 227).values)
+                if not len(pos):
+                    return []
+                out, cur = [], [pos[0]]
+                for a, b in zip(pos[:-1], pos[1:]):
+                    if b - a > gap:
+                        out.append(cur); cur = [b]
+                    else:
+                        cur.append(b)
+                out.append(cur)
+                marks = []
+                for seg in out:
+                    vals = x.iloc[seg]
+                    i = int(np.argmin(vals.values))
+                    marks.append({"date": vals.index[i].strftime("%Y-%m-%d"),
+                                  "value": round(float(vals.iloc[i]), 2),
+                                  "days": len(seg)})
+                return marks
+
             M["m14"] = {
                 "data": pack(_s14.index, _s14, _est14, nd=2),
                 "cur": {"date": _s14.index[-1].strftime("%Y-%m-%d"),
@@ -1674,7 +1700,8 @@ def main(deep=True):
                         "below_days": _n_all, "below_rounds": _r_all,
                         "below_days15": _n15, "below_rounds15": _r15,
                         "last_below": _l15, "last_below_all": _l_all,
-                        "est_days": int(_est14.sum()), "n": int(len(_s14))}
+                        "est_days": int(_est14.sum()), "n": int(len(_s14)),
+                        "marks": _marks14(_s14)}
             }
             SRC["m14"] = "中证金融「融资融券账户统计」官方日频（2012-09-27 起）；Wind EDB M0076000 尾刷"
             log(f"  M14 融资盘担保比例 OK（{M['m14']['cur']['date']} {_v14:.2f}%，"
