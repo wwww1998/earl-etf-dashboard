@@ -112,24 +112,44 @@ def chinabond_year(year, sess=None, tries=3):
 
 
 def chinabond_10y(y0=2006, y1=None, log=print, sleep=1.2):
-    """多年合并，带按年 CSV 缓存。返回 DataFrame[date, cn10y] 或 None"""
+    """多年合并，带按年 CSV 缓存。返回 DataFrame[date, cn10y] 或 None
+
+    ⚠️ 当年（y == 当前年）的缓存**不信任、必重抓**：
+    历史年份的数据已定版，缓存可直接复用；但当年还在增长，若沿用旧缓存，
+    年初生成的那个文件会被永久冻结 —— 2026 年就是这样，`cb10y_2026.csv` 从
+    08-28 起两个月没动（日志里「中债登 5127 行」长期一字不变即是征兆），
+    连带 m8 的 cn10y / spread 全变成 None、利差图整块空掉。
+    ⇒ 当年一律重抓；且只在**行数不少于缓存**时才覆盖，防止源站截断反噬。
+    """
     import datetime as dt
     y1 = y1 or dt.date.today().year
+    cy = dt.date.today().year
     sess = _sess()
     frames = []
     for y in range(y0, y1 + 1):
         ck = _cache_path(f"cb10y_{y}.csv")
+        old = None
         if os.path.exists(ck):
             try:
                 d = pd.read_csv(ck, dtype={"date": str})
                 if len(d):
-                    frames.append(d)
-                    continue
+                    old = d
             except Exception:
-                pass
+                old = None
+        if old is not None and y < cy:
+            frames.append(old)
+            continue
         d = chinabond_year(y, sess)
         if d is None or not len(d):
-            log(f"    中债登 {y} 年获取失败")
+            if old is not None:
+                frames.append(old)      # 当年抓取失败：退回旧缓存，别让整年消失
+            else:
+                log(f"    中债登 {y} 年获取失败")
+            time.sleep(sleep)
+            continue
+        if old is not None and len(d) < len(old):
+            log(f"    中债登 {y}: 新数据 {len(d)} 行 < 缓存 {len(old)} 行，保留缓存")
+            frames.append(old)
             time.sleep(sleep)
             continue
         try:
@@ -175,23 +195,40 @@ def ust_year(year, sess=None, tries=3):
 
 
 def ust_10y(y0=2006, y1=None, log=print, sleep=1.0):
+    """美债 10Y 多年合并，带按年 CSV 缓存。
+
+    与 `chinabond_10y` 同一规则：历史年份信任缓存，**当年必重抓**
+    （否则年初的 us10y_YYYY.csv 会被永久冻结，美债收益率变成几个月前的死值）。
+    """
     import datetime as dt
     y1 = y1 or dt.date.today().year
+    cy = dt.date.today().year
     sess = _sess()
     frames = []
     for y in range(y0, y1 + 1):
         ck = _cache_path(f"us10y_{y}.csv")
+        old = None
         if os.path.exists(ck):
             try:
                 d = pd.read_csv(ck, dtype={"date": str})
                 if len(d):
-                    frames.append(d)
-                    continue
+                    old = d
             except Exception:
-                pass
+                old = None
+        if old is not None and y < cy:
+            frames.append(old)
+            continue
         d = ust_year(y, sess)
         if d is None or not len(d):
-            log(f"    美财政部 {y} 年获取失败")
+            if old is not None:
+                frames.append(old)
+            else:
+                log(f"    美财政部 {y} 年获取失败")
+            time.sleep(sleep)
+            continue
+        if old is not None and len(d) < len(old):
+            log(f"    美财政部 {y}: 新数据 {len(d)} 行 < 缓存 {len(old)} 行，保留缓存")
+            frames.append(old)
             time.sleep(sleep)
             continue
         try:
