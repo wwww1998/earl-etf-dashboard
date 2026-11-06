@@ -123,6 +123,24 @@ def cpath(key):
     return os.path.join(CACHE, f"{key.replace('/','_')}.csv")
 
 
+def _recently_written(path, hours=2.0):
+    """该缓存文件是否在 hours 小时内刚写过。
+
+    专治"一天只更新一次、但每次都要全量重拉"的慢源（2026-11-06 加）：
+      · 基金累计净值（东财 akshare 接口，无增量参数，实测 10~48s 波动）
+      · 中债登国债曲线（整年打包 Excel，14s）
+      · 美财政部国债曲线（整年 CSV）
+    这些源同一轮里不会重复调用，但**手工连跑多轮**时会每轮重拉一遍
+    （今天为补尾部连跑 4 轮，光这两项就白烧 3 分钟）。净值/官方利率
+    都是 T 日晚上才更新，2 小时内绝不变化，跳过是安全的。
+    ⚠ 阈值不能设太大：18:30 的自动任务距白天手工跑已 >2h，必须能正常重抓。
+    """
+    try:
+        return (time.time() - os.path.getmtime(path)) < hours * 3600
+    except Exception:
+        return False
+
+
 def load(key):
     p = cpath(key)
     if not os.path.exists(p):
@@ -174,6 +192,12 @@ def csi_sess(force=False):
 
 # [是否已判定本次运行被封, 连续403的“不同代码”数, 上一个触发 403 的代码]
 CSI_BLOCKED = [False, 0, None]
+# --no-csi：本轮完全不请求中证官网。
+# 存在的理由（2026-11-06 实测）：一轮 fetch 里中证 18 只占 247s / 294s（84%），
+# 而这 18 只的尾部其实已由 _csi_patch.py（中证+Wind 双通道）在**本步之前**补好。
+# 再抓一遍既拖慢整轮、又必然触发 IP 级 WAF 熔断（一挡就是 12 分钟，连坐后面所有指数）。
+# ⇒ 日常链路用 --no-csi 只读缓存重算；需要重建全历史时才手工跑完整版。
+CSI_NO_FETCH = [False]
 # 中证官网 403 是 IP 级临时限流：同一秒的另一个指数请求照样 403，逐个重试纯属浪费。
 # 实测（2026-09-17）连续 4 次 403 各退避 50s = 白等 205s，占整轮 439s 的 47%。
 # ⇒ 阈值降到 2（只给一次短期重试机会），并把限流状态落盘做冷却，避免同一小时内多轮重复撞墙。
@@ -215,6 +239,8 @@ def _csi_waf_clear():
 
 
 def csindex_api(code, start, end, tries=3):
+    if CSI_NO_FETCH[0]:
+        return pd.DataFrame(columns=["date", "close"])
     if CSI_BLOCKED[0]:
         return pd.DataFrame(columns=["date", "close"])
     if _csi_waf_active():
@@ -285,6 +311,13 @@ def fetch_csi(code, deep=True):
         old = pd.DataFrame(columns=["date", "close"])
     old["date"] = old["date"].astype(str)
     have = set(old["date"])
+
+    # --no-csi：缓存即最终结果，直接返回。
+    # ⚠ 这里必须**在读缓存后立刻返回**，不能只让 csindex_api 返回空：
+    # 两个 time.sleep(SLEEP) 写在 csindex_api 外面（deep 分块循环里 + 增量分支里），
+    # 即使不请求也照等 3.5s/次、7s/只，18 只就是 98 秒白等（2026-11-06 实测）。
+    if CSI_NO_FETCH[0]:
+        return old if len(old) else None
 
     if deep:
         y = BACKFILL_FROM
@@ -457,6 +490,7 @@ def fetch_all(deep=True):
     data, used = {}, {}
     log("=== 抓取行情 ===")
     for key, (name, cands) in SERIES.items():
+        _t0 = time.time()
         got, src = None, None
         for st, code, same in cands:
             if st == "csi":
@@ -476,13 +510,13 @@ def fetch_all(deep=True):
                     got = m
                     src = (src[0] + "+", f"{src[1]}/{code}")
         if got is None:
-            log(f"  !! {name} 所有源均失败")
+            log(f"  !! {name} 所有源均失败  [{time.time() - _t0:.1f}s]")
             continue
         got = got.drop_duplicates("date", keep="last").sort_values("date").reset_index(drop=True)
         data[key] = got
         used[key] = src
         log(f"  {name}({key}) <- {src[0]}:{src[1]}  {len(got)} 行  "
-            f"{got['date'].iloc[0]}~{got['date'].iloc[-1]}")
+            f"{got['date'].iloc[0]}~{got['date'].iloc[-1]}  [{time.time() - _t0:.1f}s]")
     return data, used
 
 
@@ -580,6 +614,10 @@ def fetch_fund_nav(code):
     """
     ck = f"fund{code}"
     old = load(ck)
+    if old is not None and len(old) and _recently_written(cpath(ck), 2.0):
+        log(f"  基金{code}净值 {len(old)} 行 {old['date'].iloc[0]}~{old['date'].iloc[-1]}"
+            f"（2h 内刚抓过，跳过重拉）")
+        return old
     try:
         import akshare as ak
         df = ak.fund_open_fund_info_em(symbol=code, indicator="累计净值走势")
@@ -1877,4 +1915,7 @@ def build_notes(used, SRC=None):
 
 if __name__ == "__main__":
     import sys
+    if "--no-csi" in sys.argv:
+        CSI_NO_FETCH[0] = True
+        print("[--no-csi] 本轮不请求中证官网，全部读 cache/csi*.csv（尾部由 _csi_patch.py 负责）")
     main(deep=("--quick" not in sys.argv))

@@ -18,6 +18,18 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(BASE, "cache")
 os.makedirs(CACHE, exist_ok=True)
 
+
+def _recent(path, hours=2.0):
+    """该缓存文件是否在 hours 小时内刚写过（与 fetch_data._recently_written 同策略）。
+
+    治"一天只更新一次、但每轮都全量重拉"：中债登整年 14s、美财政部整年 3s。
+    手工连跑多轮时纯属重复劳动。官方利率 T 日晚才更新，2h 内必不变。
+    """
+    try:
+        return (time.time() - os.path.getmtime(path)) < hours * 3600
+    except Exception:
+        return False
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
@@ -139,6 +151,14 @@ def chinabond_10y(y0=2006, y1=None, log=print, sleep=1.2):
         if old is not None and y < cy:
             frames.append(old)
             continue
+        if old is not None and _recent(ck):
+            # 当年那份 2 小时内刚抓过 → 跳过重拉（整年打包 Excel，14s/次）。
+            # 官方利率 T 日晚上才更新，2 小时内必不变；18:30 自动任务距白天手工跑
+            # 已 >2h，仍会正常重抓。⚠ 不能放宽到"当天写过就跳过"，那会让
+            # 白天抓的那份冻结到次日（正是 2026-10 那次静默冻结的复现路径）。
+            log(f"    中债登 {y} 年（2h 内刚抓过，跳过重拉 {len(old)} 行）")
+            frames.append(old)
+            continue
         d = chinabond_year(y, sess)
         if d is None or not len(d):
             if old is not None:
@@ -216,6 +236,10 @@ def ust_10y(y0=2006, y1=None, log=print, sleep=1.0):
             except Exception:
                 old = None
         if old is not None and y < cy:
+            frames.append(old)
+            continue
+        if old is not None and _recent(ck):
+            log(f"    美财政部 {y} 年（2h 内刚抓过，跳过重拉 {len(old)} 行）")
             frames.append(old)
             continue
         d = ust_year(y, sess)
