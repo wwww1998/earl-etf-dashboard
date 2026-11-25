@@ -900,11 +900,15 @@ def _freq_advance(fname, snap, buf, kind):
 # 若日后重跑 tc_backfill 全史回补，务必同时把此处 _TC_UNIT 改回 1.0。
 _TC_UNIT = 100.0
 
+# tc_raw 攒批阈值（见 _tc_roll_maintain 第 2 步）：积压多少个交易日就强制落盘一次。
+RAW_FLUSH_GAP = 5
+
 
 def _tc_roll_maintain(snap, amt, codes):
-    """完整交易日 snap 到达后的配套维护：tc_recent 滚动缓冲、周/月窗口推进、tc_raw 明细追加。
+    """完整交易日 snap 到达后的配套维护：tc_recent 滚动缓冲、周/月窗口推进、tc_raw 明细攒批落盘。
     全部静默容错——失败不影响主流程（下次 run 补）。"""
-    # 1) tc_recent（最近45交易日全市场缓冲，供周/月聚合与未来重算）
+    # 1) tc_recent（最近45交易日全市场缓冲，供周/月聚合、未来重算与 tc_raw 攒批补写）
+    buf = None
     try:
         rp = os.path.join(CACHE, "tc_recent.csv")
         recent = pd.read_csv(rp, dtype={"date": str, "code": str}) if os.path.exists(rp) else None
@@ -921,33 +925,62 @@ def _tc_roll_maintain(snap, amt, codes):
         _freq_advance("tc_concentration_weekly.csv", snap, buf, kind="w")
         _freq_advance("tc_concentration_monthly.csv", snap, buf, kind="m")
     except Exception:
-        pass
-    # 2) tc_raw 明细 append 当日（与历史回补文件同构，保持全史至最新）
-    #    幂等与提速（2026-09-17 同盘基准：单文件 append 仅 0.5ms，全市场约 3s）：
-    #      ① 标记文件记录「已写入的交易日」——同日重跑直接整体跳过，5552 个文件零 I/O（省 ~12s 扫描）；
-    #      ② 逐文件再查末 256 字节兜底（防标记丢失或上一轮半途失败）。
-    #    注：不要改成线程池——实测 24 线程反而 0.77x（小文件 I/O 已是瓶颈外的开销）。
+        buf = None
+
+    # 2) tc_raw 明细落盘（与历史回补文件同构）。⚠️ 2026-11-25 改为「攒批」：
+    #    本机首次打开一个冷的小文件约 60~75ms（Defender 实时扫描），5552 只 ⇒ 单轮约 6.5 分钟；
+    #    而 tc_raw 只是 tc_backfill / tc_freq 的回补底座，日常渲染链路完全不消费它。
+    #    实测：温缓存读取仅 0.2ms/文件、线程池并行反而 0.58x（瓶颈是首次打开而非 CPU）
+    #    ⇒ 周内只累计待办，周六或积压 ≥ RAW_FLUSH_GAP 个交易日时一次性批量落盘。
+    #    tc_recent 保留 45 个交易日，足够覆盖；EARL_TCRAW_FLUSH=1 可强制立即落盘。
     mark = os.path.join(CACHE, "tc_raw_last.txt")
     try:
-        if os.path.exists(mark) and (open(mark, encoding="utf-8").read() or "").strip() == snap:
-            return
+        done_upto = (open(mark, encoding="utf-8").read() or "").strip()
     except Exception:
-        pass
+        done_upto = ""
+
+    if buf is not None and len(buf):
+        todo_days = sorted(d for d in set(buf["date"].astype(str)) if d > done_upto)
+    else:
+        todo_days = [] if done_upto >= snap else [snap]
+    if not todo_days:
+        return
+
+    force = os.environ.get("EARL_TCRAW_FLUSH") == "1"
+    if not (force or time.localtime().tm_wday == 5 or len(todo_days) >= RAW_FLUSH_GAP):
+        log("  M13 明细：tc_raw 攒批中（待落 %d 日：%s~%s），周六或积压 %d 日时统一写盘"
+            % (len(todo_days), todo_days[0], todo_days[-1], RAW_FLUSH_GAP))
+        return
+
+    # 组装 code -> [(date, amount)]（amount 已是 100× 口径，与 tc_raw 同构）
+    if buf is not None and len(buf):
+        sel = buf[buf["date"].astype(str).isin(todo_days)]
+        todo_map = {}
+        for c, d, a in zip(sel["code"].astype(str), sel["date"].astype(str),
+                           sel["amount"].astype(float)):
+            todo_map.setdefault(c, []).append((d, float(a)))
+    else:
+        todo_map = {code: [(snap, float(a) * _TC_UNIT)] for code, a in amt.items()}
+
     todo = 0
     ok = 0
-    for code, a in amt.items():
+    for code, items in todo_map.items():
+        items.sort()
         try:
             p = os.path.join(RAW, code + ".csv")
             with open(p, "rb") as fh:
                 fh.seek(0, os.SEEK_END)
                 sz = fh.tell()
-                fh.seek(max(0, sz - 256))
+                fh.seek(max(0, sz - 2048))
                 tail = fh.read().decode("utf-8", "ignore")
-            if f"{snap}," in tail:
+            # 逐日兜底：只补该文件里确实缺的日期（防标记丢失或上一轮半途失败）
+            miss = [(d, v) for d, v in items if (d + ",") not in tail]
+            if not miss:
                 continue
             todo += 1
             with open(p, "a", encoding="utf-8") as fh:
-                fh.write(f"{snap},{a * _TC_UNIT:.6g}\n")
+                for d, v in miss:
+                    fh.write("%s,%.6g\n" % (d, v))
             ok += 1
         except Exception:
             continue
@@ -955,7 +988,7 @@ def _tc_roll_maintain(snap, amt, codes):
     if ok >= todo * 0.95:
         try:
             with open(mark, "w", encoding="utf-8") as fh:
-                fh.write(snap)
+                fh.write(todo_days[-1])
         except Exception:
             pass
 
