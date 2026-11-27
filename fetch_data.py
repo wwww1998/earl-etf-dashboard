@@ -1660,6 +1660,12 @@ def main(deep=True):
                     if _k0 > 0:
                         _dates, _ratio, _ohlc = _dates[_k0:], _ratio[_k0:], _ohlc[_k0:]
                     _n = len(_dates)
+                    # 分位必须在「抽稀前的全样本」上算：抽稀是每 3 天等间隔抽样，
+                    # 在 ~1530 个抽样点上算 P(≤当前) 与全量 4590 点会有零点几到 1 个点的
+                    # 系统性噪声（M13 是 45% 阈值穿越型指标，分位口径要最稳）。
+                    _arr_full = np.array(_ratio, dtype=float)
+                    _last = float(_arr_full[-1])
+                    _pct = round(float((_arr_full <= _last).mean()) * 100, 1)
                     if _n > 1800:
                         _step = (_n // 1800) + 1
                         _idx = list(range(0, _n, _step))
@@ -1668,8 +1674,6 @@ def main(deep=True):
                         _dates = [_dates[i] for i in _idx]
                         _ratio = [_ratio[i] for i in _idx]
                         _ohlc = [_ohlc[i] for i in _idx] if _ohlc else []
-                    _last = _ratio[-1]
-                    _pct = round(float((np.array(_ratio) <= _last).mean()) * 100, 1)
                     _m13 = {
                         "cur": {"date": _dates[-1], "ratio": _last, "pct": _pct,
                                 "warn": 45.0, "idx_label": _oh_label,
